@@ -51,9 +51,9 @@ class Cell:
             return 'X'
 
         if self.wall:
-            return ' '
+            return '#'
 
-        return format(self.region, 'x') # print region
+        # return format(self.region, 'x') # print region
         return ' '
 
     def same_region(self, cell):
@@ -383,9 +383,43 @@ def join_regions(w, h, cells):
     pass
 
 
+
 def uncarve(w, h, cells):
     """fill in dead ends. easy peasy"""
-    pass
+    filled = False
+
+    def get_walls(x, y):
+        """whether the cell only has a single exit side"""
+        walls = 0
+        if cells[y][x-1].wall: walls += 1
+        if cells[y][x+1].wall: walls += 1
+        if cells[y-1][x].wall: walls += 1
+        if cells[y+1][x].wall: walls += 1
+        return walls
+
+    def find_dead_end():
+        """get an (x, y) of a dead end cell"""
+        for i in range(1, h-1):
+            for j in range(1, w-1):
+                if not cells[i][j].wall:
+                    walls = get_walls(j, i)
+                    if walls > 2:
+                        return [j, i]
+
+        return None
+
+    pos = find_dead_end()
+
+    # Once no dead ends are found, we're done
+    while pos != None:
+        x, y = pos
+        print('wall up', x, y)
+
+        # Fill in and go again.
+        # could be clever and grab the exit cell and check if that's
+        # the next dead end (good chance it is), but I'm lazy.
+        cells[y][x].wall = True
+        pos = find_dead_end()
 
 
 def generate():
