@@ -3,7 +3,42 @@
 # (man, I hate compiled languages)
 # requires Python 3ish
 
+# Known bugs:
+# - Seeing some connectors that aren't being removed from the final result
+#       Disregard. They're connectors that connected to dead ends. Treated
+#       as walls either way in the final result
+# - algo_2 may sometimes get into an infinite loop
+
 import random
+
+###############################################
+# Quick and dirty configurables
+# These will probably become exposed settings for Unity
+###############################################
+
+SEED = None
+
+# these have to be odd, otherwise math blows up
+DUNGEON_WIDTH = 61
+DUNGEON_HEIGHT = 31
+
+MAX_ROOMS = 10
+
+# make sure these are smaller than dungeon sizes...
+MIN_ROOM_SIZE = 5
+MAX_ROOM_SIZE = 10
+
+
+###############################################
+
+CARDINALS = [
+    [0, -1], # N
+    [1, 0], # E
+    [0, 1], # S
+    [-1, 0] # W
+]
+
+current_region = 0
 
 def random_odd(low, high):
     return 1 + 2 * int(random.randint(low - 1, high - 1) / 2)
@@ -16,15 +51,6 @@ def vadd(v1, v2):
     """lazy vector addition"""
     return [v1[x] + v2[x] for x in range(len(v1))]
 
-CARDINALS = [
-    [0, -1], # N
-    [1, 0], # E
-    [0, 1], # S
-    [-1, 0] # W
-]
-
-current_region = 0
-
 class Cell:
     wall = True
     door = False
@@ -35,14 +61,15 @@ class Cell:
 
     # debugging
     removed_connector = False
+    removed_dead_end = False
 
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
     def ascii(self):
-        if self.is_connector():
-            return '?' #str(len(self.adjacent_regions))
+        if self.removed_dead_end:
+            return u"\u2593" # Dark shade
 
         if self.removed_connector:
             return '.'
@@ -50,8 +77,11 @@ class Cell:
         if self.door:
             return 'X'
 
+        if self.is_connector():
+            return '?' #str(len(self.adjacent_regions))
+
         if self.wall:
-            return '#'
+            return u"\u2588" # Full block
 
         # return format(self.region, 'x') # print region
         return ' '
@@ -200,6 +230,9 @@ def algo_2(w, h, cells):
             del frontier[len(frontier) - 1]
 
     # Recursively run ourselves until we run out of regions to flood fill
+    # TODO: Non-recursive variation since I'm bad at tail calls (Also C#)
+    # TODO: Sometimes it runs forever and hits max recursion depth.
+    # happens when 'start' above keeps returning the same value
     algo_2(w, h, cells)
 
 
@@ -215,7 +248,7 @@ def build_rooms(w, h, cells, limit):
         return False
 
     def carve_room(x, y, w, h):
-        print('Room', x, y, w, h)
+        # print('Room', x, y, w, h)
         for i in range(y, y + h):
             for j in range(x, x + w):
                 cells[i][j].wall = False
@@ -224,8 +257,8 @@ def build_rooms(w, h, cells, limit):
     iterations = 0
     rooms = 0
     while iterations < 200 and rooms < limit:
-        room_w = random_odd(3, 9)
-        room_h = random_odd(3, 9)
+        room_w = random_odd(MIN_ROOM_SIZE, MAX_ROOM_SIZE)
+        room_h = random_odd(MIN_ROOM_SIZE, MAX_ROOM_SIZE)
         x = random_odd(0, w - room_w)
         y = random_odd(0, h - room_h)
 
@@ -238,7 +271,6 @@ def build_rooms(w, h, cells, limit):
             rooms += 1
 
         iterations += 1
-
 
 def calculate_adjacent_regions(w, h, cells):
     # Calculate and cache all connector cells
@@ -377,12 +409,6 @@ def connect_regions(w, h, cells):
                     elif cells[i][j].connects_external_to_regions(joined_regions):
                         connectors.append([j, i])
 
-        print(len(connectors))
-
-def join_regions(w, h, cells):
-    pass
-
-
 
 def uncarve(w, h, cells):
     """fill in dead ends. easy peasy"""
@@ -413,33 +439,25 @@ def uncarve(w, h, cells):
     # Once no dead ends are found, we're done
     while pos != None:
         x, y = pos
-        print('wall up', x, y)
 
         # Fill in and go again.
         # could be clever and grab the exit cell and check if that's
         # the next dead end (good chance it is), but I'm lazy.
         cells[y][x].wall = True
+        cells[y][x].removed_dead_end = True
         pos = find_dead_end()
 
 
 def generate():
-    w = 41
-    h = 21
+    w = DUNGEON_WIDTH
+    h = DUNGEON_HEIGHT
     cells = [[Cell(x, y) for x in range(w)] for y in range(h)]
 
-    # Build giant hole
-    # for y in range(11, h-1):
-    #     for x in range(11, w-1):
-    #         cells[y][x] = 1
-
-    # Fixed seeding, for testing algos overlayed
-    # This makes a good partition (with 10 rooms)
-    # that prevents a single maze algo from flooding the209 entire
-    # rest of the region (so I can test recursion on that)
-    random.seed(12)
+    if SEED:
+        random.seed(SEED)
 
     # Build some random rooms
-    build_rooms(w, h, cells, 10)
+    build_rooms(w, h, cells, MAX_ROOMS)
 
     # Run maze flood fill in all open spaces
     algo_2(w, h, cells)
