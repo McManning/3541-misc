@@ -16,7 +16,7 @@ import random
 # These will probably become exposed settings for Unity
 ###############################################
 
-SEED = None
+SEED = 12
 
 # these have to be odd, otherwise math blows up
 DUNGEON_WIDTH = 61
@@ -27,6 +27,11 @@ MAX_ROOMS = 10
 # make sure these are smaller than dungeon sizes...
 MIN_ROOM_SIZE = 5
 MAX_ROOM_SIZE = 10
+
+# Alternative tree growing algorithm. Makes hallways
+# less windy and random. But still can generate some
+# pretty ridiculously long hallways. [1, 0] weight
+RANDOM_TREE_GROWING_CHANCE = 0.75
 
 
 ###############################################
@@ -206,6 +211,7 @@ def algo_2(w, h, cells):
     carve(start)
     frontier.append(start)
 
+    last_dir = None
     while len(frontier):
         valid_directions = []
 
@@ -218,8 +224,16 @@ def algo_2(w, h, cells):
 
         if len(valid_directions):
             # Pick one at random and carve in that direction
-            d = random.choice(valid_directions)
+            if (
+                random.randint(0, 100) < RANDOM_TREE_GROWING_CHANCE * 100 or
+                last_dir not in valid_directions
+            ):
+                d = random.choice(valid_directions)
+            else:
+                d = last_dir
+
             carve(vadd(pos, d))
+            last_dir = d
 
             new_pos = vadd(pos, vmult(d, 2))
             carve(new_pos)
