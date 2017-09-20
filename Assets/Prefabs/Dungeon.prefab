@@ -56,3 +56,7 @@ MonoBehaviour:
     z: 20
   cellPrefab: {fileID: 114877714803449790, guid: 9e6ff803f38e8644caa6883a2b6618ee,
     type: 2}
+  treeGrowingRandomness: 0
+  desiredRooms: 10
+  minimumRoomSize: 5
+  maximumRoomSize: 10
