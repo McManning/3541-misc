@@ -69,6 +69,17 @@ public struct IntVector2
     };
 
     /// <summary>
+    /// Array of intercardinal direction normals
+    /// </summary>
+    public static IntVector2[] Intercardinals =
+    {
+        North + East,
+        North + West,
+        South + East,
+        South + West
+    };
+
+    /// <summary>
     /// Return a random cardinal direction normal
     /// </summary>
     public static IntVector2 RandomCardinal
