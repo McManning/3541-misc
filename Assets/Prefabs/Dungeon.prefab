@@ -61,9 +61,9 @@ MonoBehaviour:
   doorPrefab: {fileID: 114766508295641804, guid: 49fa04834b64263459bf1a536ea2893e,
     type: 2}
   randomSeed: 0
-  hallwayRandomness: 0.75
+  hallwayRandomness: 0.25
   doorLoopChance: 0.02
   desiredRooms: 5
   minimumRoomSize: 5
   maximumRoomSize: 7
-  fillDeadEnds: 0
+  fillDeadEnds: 1

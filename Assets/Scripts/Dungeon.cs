@@ -13,6 +13,8 @@ public class Dungeon : MonoBehaviour
         public int Region { get; internal set; }
         public bool IsConnector { get; internal set; }
         public bool IsRemovedDeadEnd { get; internal set; }
+        public bool IsStairsUp { get; internal set; }
+        public bool IsStairsDown { get; internal set; }
 
         public CellMetadata(IntVector2 position)
         {
@@ -20,6 +22,8 @@ public class Dungeon : MonoBehaviour
             IsWall = true;
             IsConnector = false;
             IsRemovedDeadEnd = false;
+            IsStairsDown = false;
+            IsStairsUp = false;
             Region = 0;
         }
     }
@@ -98,6 +102,11 @@ public class Dungeon : MonoBehaviour
     /// Minor optimization when searching for open cells
     /// </summary>
     private List<CellMetadata> openCells;
+
+    /// <summary>
+    /// Center points of each room, to help calculate distances
+    /// </summary>
+    private List<CellMetadata> roomCenters;
 
 	// Use this for initialization
 	void Start ()
