@@ -4,27 +4,39 @@ using UnityEngine;
 
 public class Dungeon : MonoBehaviour
 {
-    const int MAX_ROOM_ITERATIONS = 200;
+    private const int MAX_ROOM_ITERATIONS = 200;
 
-    // Configurations exposed to Unity
-    public IntVector2 size;
-
-    public DungeonCell cellPrefab;
-
-    public struct CellMetadata
+    public class CellMetadata
     {
-        public IntVector2 position;
-        public bool isWall;
-        public int region;
+        public IntVector2 Position { get; internal set; }
+        public bool IsWall { get; internal set; }
+        public int Region { get; internal set; }
 
-        public CellMetadata(int x, int z) : this()
+        public CellMetadata(IntVector2 position)
         {
-            position.x = x;
-            position.z = z;
-            isWall = true;
-            region = 0;
+            Position = position;
+            IsWall = true;
+            Region = 0;
         }
     }
+
+    #region Configurations exposed to the Unity editor
+    
+    /// <summary>
+    /// Dimensions (in cells) of the dungeon.
+    /// MUST be an odd number for an optimal generation
+    /// </summary>
+    public IntVector2 size;
+
+    /// <summary>
+    /// Prefab GameObject used to render floors
+    /// </summary>
+    public DungeonCell floorPrefab;
+
+    /// <summary>
+    /// Prefab GameObject used to render walls
+    /// </summary>
+    public DungeonCell wallPrefab;
 
     /// <summary>
     /// Amount of "randomness" for the tree growing algorithm.
@@ -49,7 +61,9 @@ public class Dungeon : MonoBehaviour
     /// MUST be smaller than size.z and size.x
     /// </summary>
     public int maximumRoomSize;
-    
+
+    #endregion
+
     private int currentRegion;
 
     private CellMetadata[,] cells;
@@ -58,7 +72,6 @@ public class Dungeon : MonoBehaviour
     /// Minor optimization when searching for open cells
     /// </summary>
     private List<CellMetadata> openCells;
-
 
 	// Use this for initialization
 	void Start ()
@@ -91,7 +104,7 @@ public class Dungeon : MonoBehaviour
     /// <returns></returns>
     private int RandomOdd(int min, int max)
     {
-        return 1 + 2 * (int)(Random.Range(min - 1, max - 1) / 2);
+        return 1 + 2 * (Random.Range(min - 1, max - 1) / 2);
     }
 
     /// <summary>
@@ -109,7 +122,7 @@ public class Dungeon : MonoBehaviour
         {
             for (int z = 0; z < size.z; z++)
             {
-                cells[x, z] = new CellMetadata(x, z);
+                cells[x, z] = new CellMetadata(new IntVector2(x, z));
             }
         }
         
@@ -137,8 +150,8 @@ public class Dungeon : MonoBehaviour
         {
             for (int z = rect.z; z < rect.z + rect.depth; z++)
             {
-                cells[x, z].isWall = false;
-                cells[x, z].region = currentRegion;
+                cells[x, z].IsWall = false;
+                cells[x, z].Region = currentRegion;
                 openCells.Add(cells[x, z]);
             }
         }
@@ -175,15 +188,168 @@ public class Dungeon : MonoBehaviour
     }
 
     /// <summary>
-    /// 
+    /// Mark a cell as a floor for the current region
     /// </summary>
-    private void BuildMazes()
+    /// <param name="cell"></param>
+    private void Carve(CellMetadata cell)
     {
-        // pass
+        cell.IsWall = false;
+        cell.Region = currentRegion;
+    }
+
+    private CellMetadata GetCell(IntVector2 position)
+    {
+        return cells[position.x, position.z];
     }
 
     /// <summary>
-    /// Returns true if any open cells are in the given area
+    /// Get all directions around the given cell that we can carve a path.
+    /// </summary>
+    /// <param name="cell"></param>
+    /// <returns></returns>
+    private List<IntVector2> GetCarveableDirections(CellMetadata cell)
+    {
+        List<IntVector2> directions = new List<IntVector2>();
+
+        foreach (IntVector2 dir in IntVector2.Cardinals)
+        {
+            if (Contains(cell.Position + dir * 3))
+            {
+                if (GetCell(cell.Position + dir * 2).IsWall)
+                {
+                    directions.Add(dir);
+                }
+            }
+        }
+
+        return directions;
+    }
+
+    /// <summary>
+    /// Perform a Tree Growing maze algorithm originating from the given (x, z)
+    /// </summary>
+    /// <param name="start"></param>
+    private void TreeGrowingFloodFill(CellMetadata start)
+    {
+        List<CellMetadata> frontier = new List<CellMetadata>();
+        List<IntVector2> validDirections;
+        IntVector2? lastDirection = null;
+        CellMetadata cell;
+
+        // quick iteration tracker so my stupidity doesn't cause 
+        // Unity to hang again :^)
+        int iterations = 0;
+
+        Debug.Log("Tree Growing at " + start.Position.x + ", " + start.Position.z);
+        
+        // Use a new region for this flood fill maze
+        currentRegion += 1;
+
+        // Carve out starting point
+        Carve(start);
+        frontier.Add(start);
+
+        // Loop until we run out of cells we can carve into
+        while (frontier.Count > 0)
+        {
+            // Pick one at "random" (this implementation uses the last
+            // in the stack to continue digging until it's at a dead end)
+            cell = frontier[frontier.Count - 1];
+            validDirections = GetCarveableDirections(cell);
+            
+            if (validDirections.Count > 0)
+            {
+                // Either walk in our last direction (if it is a valid direction)
+                // or walk in a random direction if the RNG god says so
+                if (!lastDirection.HasValue ||
+                    !validDirections.Contains(lastDirection.Value) ||
+                    Random.Range(0.0f, 1.0f) < treeGrowingRandomness
+                ) {
+                    lastDirection = validDirections[
+                        Random.Range(0, validDirections.Count)
+                    ];
+                }
+
+                // Carve into the cell at the given direction
+                Carve(GetCell(cell.Position + lastDirection.Value));
+
+                // Carve into the cell after the cell at the given direction
+                // and add that cell as another possible branching path
+                cell = GetCell(cell.Position + lastDirection.Value * 2);
+                Carve(cell);
+
+                frontier.Add(cell);
+            }
+            else // Can't go anywhere from this cell, we're done using it
+            {
+                frontier.Remove(cell);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Performs a Tree Growing Maze flood fill for every location
+    /// we identify as fillable entry points (any isolated cell)
+    /// </summary>
+    private void BuildMazes()
+    {
+        CellMetadata cell = FindIsolatedCell();
+        
+        // lazy safety net until I can figure out unity coroutines
+        int iterations = 0;
+
+        while (cell != null && iterations < 100)
+        {
+            TreeGrowingFloodFill(cell);
+            cell = FindIsolatedCell();
+
+            iterations++;
+        }
+    }
+
+    /// <summary>
+    /// Determine if a cell is considered isolated (walls on all sides)
+    /// </summary>
+    /// <param name="position"></param>
+    /// <returns></returns>
+    private bool IsIsolatedCell(CellMetadata cell)
+    {
+        int x = cell.Position.x;
+        int z = cell.Position.z;
+
+        return 
+            cell.IsWall &&
+            cells[x - 1, z].IsWall && cells[x + 1, z].IsWall &&
+            cells[x, z - 1].IsWall && cells[x, z + 1].IsWall &&
+            cells[x - 1, z - 1].IsWall && cells[x + 1, z + 1].IsWall &&
+            cells[x - 1, z + 1].IsWall && cells[x + 1, z - 1].IsWall;
+    }
+
+    /// <summary>
+    /// Return a cell that has walls on all sides
+    /// </summary>
+    /// <returns></returns>
+    private CellMetadata FindIsolatedCell()
+    {
+        // Note we don't touch the edge cells during this search,
+        // as those can never be considered isolated
+        for (int x = 1; x < size.x-1; x++)
+        {
+            for (int z = 1; z < size.z-1; z++)
+            {
+                if (IsIsolatedCell(cells[x, z]))
+                {
+                    Debug.Log(x + ", " + z);
+                    return cells[x, z];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns true if any open cells intersect the given rectangle
     /// </summary>
     /// <param name="area"></param>
     /// <returns></returns>
@@ -191,7 +357,7 @@ public class Dungeon : MonoBehaviour
     {
         foreach (CellMetadata cell in openCells)
         {
-            if (rect.Contains(cell.position))
+            if (rect.Contains(cell.Position))
             {
                 return true;
             }
@@ -206,13 +372,17 @@ public class Dungeon : MonoBehaviour
     /// <param name="position"></param>
     private void CreatePrefab(IntVector2 position)
     {
-        // For now just generate for the ones that are walls, for testing
-        if (cells[position.x, position.z].isWall)
+        DungeonCell cell;
+        
+        if (cells[position.x, position.z].IsWall)
         {
-            return;
+            cell = Instantiate(wallPrefab) as DungeonCell;
+        }
+        else
+        {
+            cell = Instantiate(floorPrefab) as DungeonCell;
         }
         
-        DungeonCell cell = Instantiate(cellPrefab) as DungeonCell;
         cell.LoadMetadata(cells[position.x, position.z]);
         
         // Transform cell to a local space position relative to its (x, z)

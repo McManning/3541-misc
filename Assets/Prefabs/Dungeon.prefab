@@ -52,11 +52,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   size:
-    x: 20
-    z: 20
-  cellPrefab: {fileID: 114877714803449790, guid: 9e6ff803f38e8644caa6883a2b6618ee,
+    x: 11
+    z: 11
+  floorPrefab: {fileID: 114877714803449790, guid: 9e6ff803f38e8644caa6883a2b6618ee,
+    type: 2}
+  wallPrefab: {fileID: 114019131309593900, guid: f6a88779cbf717c458a46023d4a41592,
     type: 2}
   treeGrowingRandomness: 0
-  desiredRooms: 10
-  minimumRoomSize: 5
-  maximumRoomSize: 10
+  desiredRooms: 3
+  minimumRoomSize: 3
+  maximumRoomSize: 5

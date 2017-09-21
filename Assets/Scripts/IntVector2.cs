@@ -17,6 +17,14 @@ public struct IntVector2
         this.z = z;
     }
 
+    public static IntVector2 Zero
+    {
+        get
+        {
+            return new IntVector2(0, 0);
+        }
+    }
+
     public static IntVector2 North
     {
         get
@@ -54,10 +62,10 @@ public struct IntVector2
     /// </summary>
     public static IntVector2[] Cardinals =
     {
-        IntVector2.North,
-        IntVector2.South,
-        IntVector2.East,
-        IntVector2.West
+        North,
+        South,
+        East,
+        West
     };
 
     /// <summary>
@@ -67,7 +75,7 @@ public struct IntVector2
     {
         get
         {
-            return Cardinals[Random.Range(0, 4)];
+            return Cardinals[Random.Range(0, 3)];
         }
     }
 
