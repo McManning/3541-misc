@@ -12,12 +12,14 @@ public class Dungeon : MonoBehaviour
         public bool IsWall { get; internal set; }
         public int Region { get; internal set; }
         public bool IsConnector { get; internal set; }
+        public bool IsRemovedDeadEnd { get; internal set; }
 
         public CellMetadata(IntVector2 position)
         {
             Position = position;
             IsWall = true;
             IsConnector = false;
+            IsRemovedDeadEnd = false;
             Region = 0;
         }
     }
@@ -56,7 +58,7 @@ public class Dungeon : MonoBehaviour
     /// value of 0 will create as straight of halls as possible
     /// </summary>
     [Range(0.0f, 1.0f)]
-    public float treeGrowingRandomness;
+    public float hallwayRandomness;
 
     /// <summary>
     /// Chance that extra doors will be added to connect regions
@@ -80,6 +82,11 @@ public class Dungeon : MonoBehaviour
     /// MUST be smaller than size.z and size.x
     /// </summary>
     public int maximumRoomSize;
+
+    /// <summary>
+    /// Whether or not to fill in dead end hallways
+    /// </summary>
+    public bool fillDeadEnds;
 
     #endregion
 
@@ -136,6 +143,11 @@ public class Dungeon : MonoBehaviour
 
         // Bridge rooms and mazes with doors
         BuildDoors();
+
+        if (fillDeadEnds)
+        {
+            FillDeadEnds();
+        }
 
         // Finally, generate prefabs for every cell
         BuildPrefabs();
@@ -327,7 +339,7 @@ public class Dungeon : MonoBehaviour
                 // or walk in a random direction if the RNG god says so
                 if (!lastDirection.HasValue ||
                     !validDirections.Contains(lastDirection.Value) ||
-                    Random.Range(0.0f, 1.0f) < treeGrowingRandomness
+                    Random.Range(0.0f, 1.0f) < hallwayRandomness
                 ) {
                     lastDirection = validDirections[
                         Random.Range(0, validDirections.Count)
@@ -589,6 +601,10 @@ public class Dungeon : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Randomize the cells in a list
+    /// </summary>
+    /// <param name="list"></param>
     private void ShuffleCells(List<CellMetadata> list)
     {
         int n = list.Count;
@@ -608,11 +624,65 @@ public class Dungeon : MonoBehaviour
     }
 
     /// <summary>
-    /// Fill in dead end paths
+    /// Returns true if the cell has only one exit
+    /// </summary>
+    /// <param name="cell"></param>
+    /// <returns></returns>
+    private bool IsDeadEnd(CellMetadata cell)
+    {
+        if (cell.IsWall)
+        {
+            return false;
+        }
+
+        int walls = 0;
+        foreach (CellMetadata adjacent in GetAdjacentCells(cell, false))
+        {
+            if (adjacent.IsWall)
+            {
+                walls++;
+            }
+        }
+
+        return walls > 2;
+    }
+
+    /// <summary>
+    /// Find a cell that has only one exit
+    /// </summary>
+    /// <returns></returns>
+    private CellMetadata FindDeadEnd()
+    {
+        for (int x = 0; x < size.x; x++)
+        {
+            for (int z = 0; z < size.z; z++)
+            {
+                if (IsDeadEnd(cells[x, z]))
+                {
+                    return cells[x, z];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Fill in dead end paths (uncarving)
     /// </summary>
     private void FillDeadEnds()
     {
+        CellMetadata cell = FindDeadEnd();
 
+        while (cell != null)
+        {
+            // Fill the cell
+            cell.IsWall = true;
+            cell.IsRemovedDeadEnd = true;
+
+            // Search for the next one
+            cell = FindDeadEnd();
+        }
     }
 
     /// <summary>
