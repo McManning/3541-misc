@@ -60,8 +60,10 @@ MonoBehaviour:
     type: 2}
   doorPrefab: {fileID: 114766508295641804, guid: 49fa04834b64263459bf1a536ea2893e,
     type: 2}
-  treeGrowingRandomness: 1
-  doorLoopChance: 0
+  randomSeed: 0
+  hallwayRandomness: 0.75
+  doorLoopChance: 0.02
   desiredRooms: 5
-  minimumRoomSize: 11
-  maximumRoomSize: 13
+  minimumRoomSize: 5
+  maximumRoomSize: 7
+  fillDeadEnds: 0
