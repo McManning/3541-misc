@@ -46,6 +46,11 @@ public class Dungeon : MonoBehaviour
     public DungeonCell doorPrefab;
 
     /// <summary>
+    /// Seed for the random number generator
+    /// </summary>
+    public int randomSeed;
+
+    /// <summary>
     /// Amount of "randomness" for the tree growing algorithm.
     /// A value of 1 will create very windy hallways, while a 
     /// value of 0 will create as straight of halls as possible
@@ -106,6 +111,11 @@ public class Dungeon : MonoBehaviour
     {
         currentRegion = 0;
 
+        if (randomSeed != 0)
+        {
+            Random.InitState(randomSeed);
+        }
+        
         cells = new CellMetadata[size.x, size.z];
         openCells = new List<CellMetadata>();
 
