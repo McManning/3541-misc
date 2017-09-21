@@ -498,6 +498,10 @@ public class Dungeon : MonoBehaviour
         return connectors;
     }
 
+    /// <summary>
+    /// Mark a cell as a door that can be passed through
+    /// </summary>
+    /// <param name="cell"></param>
     private void CarveDoor(CellMetadata cell)
     {
         cell.IsConnector = true;
@@ -555,7 +559,10 @@ public class Dungeon : MonoBehaviour
             }
 
             // Pick a connector at random to turn into a door
-            door = connectors[Random.Range(0, connectors.Count)];
+            // Note shuffle is done here to improve the randomness of 
+            // extra door insertion in the next foreach
+            ShuffleCells(connectors);
+            door = connectors[0];
 
             CarveDoor(door);
             connectors.Remove(door);
@@ -571,10 +578,41 @@ public class Dungeon : MonoBehaviour
             {
                 regions = GetAdjacentRegions(cell);
                 if (regions.IsSubsetOf(mergedRegions)) {
+                    if (Random.Range(0.0f, 1.0f) < doorLoopChance)
+                    {
+                        CarveDoor(cell);
+                    }
+
                     allConnectors.Remove(cell);
                 }
             }
         }
+    }
+
+    private void ShuffleCells(List<CellMetadata> list)
+    {
+        int n = list.Count;
+        int k;
+        CellMetadata cell;
+
+        // Fisher-Yates shuffle
+        // Via: https://stackoverflow.com/a/1262619
+        while (n > 1)
+        {
+            n--;
+            k = Random.Range(0, n + 1);
+            cell = list[k];
+            list[k] = list[n];
+            list[n] = cell;
+        }
+    }
+
+    /// <summary>
+    /// Fill in dead end paths
+    /// </summary>
+    private void FillDeadEnds()
+    {
+
     }
 
     /// <summary>
