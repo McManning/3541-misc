@@ -741,4 +741,20 @@ public class Dungeon : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// Return the spawn point for a player entering this dungeon
+    /// </summary>
+    /// <returns></returns>
+    public Vector3 GetSpawnPoint()
+    {
+        // TODO
+        return new Vector3(0, 2.0f, 0);
+    }
+
+    public void AddPlayer(GameObject player)
+    {
+        player.transform.position = GetSpawnPoint();
+        player.transform.parent = this.transform;
+    }
 }

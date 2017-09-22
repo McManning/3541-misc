@@ -5,8 +5,10 @@ using UnityEngine;
 public class GameManager : MonoBehaviour
 {
     public Dungeon dungeonPrefab;
-    private Dungeon dungeonInstance;
+    public GameObject player;
 
+    private Dungeon dungeonInstance;
+    
 	// Use this for initialization
 	void Start ()
     {
@@ -26,10 +28,16 @@ public class GameManager : MonoBehaviour
     {
         dungeonInstance = Instantiate(dungeonPrefab) as Dungeon;
         dungeonInstance.Generate();
+
+        dungeonInstance.AddPlayer(player);
     }
 
     private void Restart()
     {
+        // Detach player from existing dungeon
+        player.transform.parent = null;
+
+        // Delete dungeon and generate a new one
         Destroy(dungeonInstance.gameObject);
         Setup();
     }
