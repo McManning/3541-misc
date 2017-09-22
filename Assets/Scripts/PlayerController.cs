@@ -24,7 +24,7 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     /// <param name="forward"></param>
     /// <param name="rotation"></param>
-    void Move(float forward, float rotation)
+    void TankControls(float forward, float rotation)
     {
         Vector3 rotationVec = new Vector3(0.0f, rotation, 0.0f);
         Vector3 forwardVec = new Vector3(0.0f, 0.0f, forward);
@@ -46,6 +46,30 @@ public class PlayerController : MonoBehaviour
             Debug.Log("Forward " + forwardVec);
         }
         rigidBody.AddRelativeForce(forwardVec);
+    }
+
+    /// <summary>
+    /// Alternative non-tank controls version, because I misread
+    /// the instructions :^)
+    /// </summary>
+    /// <param name="vertical"></param>
+    /// <param name="horizontal"></param>
+    void Move(float vertical, float horizontal)
+    {
+        Vector3 vec = new Vector3(horizontal, 0.0f, vertical);
+
+        // Only good for a fixed camera
+        rigidBody.AddForce(vec.normalized * forwardSpeed * Time.deltaTime);
+
+        // rigidBody.AddRelativeForce(vec.normalized * forwardSpeed * Time.deltaTime);
+
+        // Rotate the player to face the direction of movement
+        transform.LookAt(transform.position + vec);
+
+        // TODO: Lerping our rotation
+        // TODO: Figure out relative positions better so that
+        // the over the shoulder camera can be used instead. 
+        // (although not necessarily a requirement)
     }
 	
 	void FixedUpdate()
