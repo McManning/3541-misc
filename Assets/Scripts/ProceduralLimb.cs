@@ -27,7 +27,7 @@ public class ProceduralLimb : MonoBehaviour
         int index = vertices.Count;
 
         // Tilt will be applied along the X axis
-        Vector3 tiltVec = new Vector3(tilt, 0, 0);
+        Vector3 tiltVec = new Vector3(0, 0, tilt);
 
         // Center the vertices around
         Vector3 offset = new Vector3(
@@ -46,16 +46,16 @@ public class ProceduralLimb : MonoBehaviour
         if (!flip)
         {
             vertices.Add(new Vector3(0, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(0, height, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(width, 0, 0) + offset - tiltVec);
-            vertices.Add(new Vector3(width, height, 0) + offset - tiltVec);
+            vertices.Add(new Vector3(width, 0, 0) + offset + tiltVec);
+            vertices.Add(new Vector3(0, height, 0) + offset);
+            vertices.Add(new Vector3(width, height, 0) + offset);
         }
         else
         {
             vertices.Add(new Vector3(0, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(width, 0, 0) + offset + tiltVec); 
-            vertices.Add(new Vector3(0, height, 0) + offset - tiltVec);
-            vertices.Add(new Vector3(width, height, 0) + offset - tiltVec);
+            vertices.Add(new Vector3(0, height, 0) + offset);
+            vertices.Add(new Vector3(width, 0, 0) + offset + tiltVec);
+            vertices.Add(new Vector3(width, height, 0) + offset);
         }
         
         // Add 2 tris clockwise, with (offsetted indices):
@@ -97,7 +97,7 @@ public class ProceduralLimb : MonoBehaviour
                 Vector3.forward * spacing * i, 
                 startThickness,
                 startThickness,
-                true
+                false
             );
 
             // Add another quad that is just a flip of the first
@@ -107,7 +107,7 @@ public class ProceduralLimb : MonoBehaviour
                 Vector3.forward * spacing * i,
                 startThickness,
                 startThickness,
-                false
+                true
             );
         }
 
