@@ -21,7 +21,7 @@ public class ProceduralLimb : MonoBehaviour
     private List<Vector3> normals;
     private List<Vector2> uv;
 
-    void AddQuad(Vector3 center, float width, float height, bool flip)
+    void AddQuad(Vector3 center, float size, bool flip)
     {
         // Ensure triangle indices track only new triangles
         int index = vertices.Count;
@@ -31,8 +31,8 @@ public class ProceduralLimb : MonoBehaviour
 
         // Center the vertices around
         Vector3 offset = new Vector3(
-            center.x - width * 0.5f, 
-            center.y - height * 0.5f, 
+            center.x - size * 0.5f, 
+            center.y - size * 0.5f, 
             center.z
         );
 
@@ -46,16 +46,16 @@ public class ProceduralLimb : MonoBehaviour
         if (!flip)
         {
             vertices.Add(new Vector3(0, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(width, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(0, height, 0) + offset);
-            vertices.Add(new Vector3(width, height, 0) + offset);
+            vertices.Add(new Vector3(size, 0, 0) + offset + tiltVec);
+            vertices.Add(new Vector3(0, size, 0) + offset);
+            vertices.Add(new Vector3(size, size, 0) + offset);
         }
         else
         {
             vertices.Add(new Vector3(0, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(0, height, 0) + offset);
-            vertices.Add(new Vector3(width, 0, 0) + offset + tiltVec);
-            vertices.Add(new Vector3(width, height, 0) + offset);
+            vertices.Add(new Vector3(0, size, 0) + offset);
+            vertices.Add(new Vector3(size, 0, 0) + offset + tiltVec);
+            vertices.Add(new Vector3(size, size, 0) + offset);
         }
         
         // Add 2 tris clockwise, with (offsetted indices):
@@ -105,8 +105,7 @@ public class ProceduralLimb : MonoBehaviour
             // a specific mesh without writing a custom shader? :\
             AddQuad(
                 Vector3.forward * spacing * i,
-                startThickness,
-                startThickness,
+                scale,
                 true
             );
         }
