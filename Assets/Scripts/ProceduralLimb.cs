@@ -143,5 +143,8 @@ public class ProceduralLimb : MonoBehaviour
         mesh.uv = uv.ToArray();
         mesh.triangles = triangles.ToArray();
         mesh.normals = normals.ToArray();
+        
+        // Hide the debugging line renderer
+        Destroy(GetComponent<LineRenderer>());
     }
 }
