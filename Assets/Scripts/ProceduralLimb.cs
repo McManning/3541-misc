@@ -10,10 +10,12 @@ public class ProceduralLimb : MonoBehaviour
     #region Configurations exposed to the Unity editor
 
     public int quads;
+
     public float startThickness;
+    public float middleThickness;
     public float endThickness;
     public float tilt;
-
+    
     #endregion
 
     private List<Vector3> vertices;
@@ -87,16 +89,27 @@ public class ProceduralLimb : MonoBehaviour
         triangles = new List<int>();
         normals = new List<Vector3>();
         uv = new List<Vector2>();
-        
-        float spacing = 0.5f;
+      
+        float spacing = 1.0f / quads;
+        float midpoint = quads * 0.5f;
+        float scale;
 
         // Spawn quads down the limb
         for (int i = 0; i < quads; i++)
         {
+            // Lerp between start/mid/end to create sort of an hourglass
+            if (i < midpoint)
+            {
+                scale = Mathf.Lerp(startThickness, middleThickness, i / midpoint);
+            }
+            else
+            {
+                scale = Mathf.Lerp(endThickness, middleThickness, midpoint / i);
+            }
+            
             AddQuad(
                 Vector3.forward * spacing * i, 
-                startThickness,
-                startThickness,
+                scale,
                 false
             );
 
