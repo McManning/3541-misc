@@ -93,11 +93,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1cbc4fe77784404c9ebcfb9a190460a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  quads: 10
+  quads: 4
   startThickness: 1
   middleThickness: 0.5
-  endThickness: 2
-  tilt: 0.25
+  endThickness: 1
+  tilt: 0
 --- !u!120 &120298651806518416
 LineRenderer:
   m_ObjectHideFlags: 1
