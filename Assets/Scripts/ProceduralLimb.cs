@@ -90,8 +90,8 @@ public class ProceduralLimb : MonoBehaviour
         normals = new List<Vector3>();
         uv = new List<Vector2>();
       
-        float spacing = 1.0f / quads;
-        float midpoint = quads * 0.5f;
+        float spacing = 1.0f / (quads - 1);
+        float midpoint = (quads - 1) * 0.5f;
         float scale;
 
         // Spawn quads down the limb
