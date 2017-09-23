@@ -857,7 +857,7 @@ public class Dungeon : MonoBehaviour
             {
                 // If it's a room floor that isn't next to any walls, select it
                 if (cells[x, z].Type == CellType.ROOM_FLOOR &&
-                    GetAdjacentCells(cells[x, z], false, CellType.WALL).Count == 0
+                    GetAdjacentCells(cells[x, z], false, CellType.ROOM_FLOOR).Count == 4
                 ) {
                     entranceCell = cells[x, z];
                     entranceCell.Type = CellType.ENTRANCE;
@@ -871,7 +871,7 @@ public class Dungeon : MonoBehaviour
             for (z = 0; z < size.z; z++)
             {
                 if (cells[x, z].Type == CellType.ROOM_FLOOR &&
-                    GetAdjacentCells(cells[x, z], false, CellType.WALL).Count == 0
+                    GetAdjacentCells(cells[x, z], false, CellType.ROOM_FLOOR).Count == 4
                 ) {
                     // If it's further than the last exit, use 
                     distance = Vector2.Distance(
