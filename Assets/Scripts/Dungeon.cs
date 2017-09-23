@@ -102,11 +102,9 @@ public class Dungeon : MonoBehaviour
     /// Minor optimization when searching for open cells
     /// </summary>
     private List<CellMetadata> openCells;
-
-    /// <summary>
-    /// Center points of each room, to help calculate distances
-    /// </summary>
-    private List<CellMetadata> roomCenters;
+    
+    private CellMetadata entranceCell;
+    private CellMetadata exitCell;
 
 	// Use this for initialization
 	void Start ()
@@ -153,10 +151,14 @@ public class Dungeon : MonoBehaviour
         // Bridge rooms and mazes with doors
         BuildDoors();
 
+        // Fill in dead ends of the maze halls, if chosen
         if (fillDeadEnds)
         {
             FillDeadEnds();
         }
+
+        // Build an entrance and exit point
+        BuildEntranceAndExit();
 
         // Finally, generate prefabs for every cell
         BuildPrefabs();
@@ -750,6 +752,52 @@ public class Dungeon : MonoBehaviour
     {
         // TODO
         return new Vector3(0, 2.0f, 0);
+    }
+
+    /// <summary>
+    /// Add entrance/exit stairs in rooms furthest from one-another
+    /// </summary>
+    private void BuildEntranceAndExit()
+    {
+        // This'll be lazy for now - we scan for the first hit of a ROOM_FLOOR
+        // and make that the entrance. We then continue that scan to find the
+        // furthest ROOM_FLOOR for an exit. 
+        float lastDistance = -1;
+        float distance;
+
+        entranceCell = null;
+        exitCell = null;
+
+        for (int x = 0; x < size.x; x++)
+        {
+            for (int z = 0; z < size.z; z++)
+            {
+                if (cells[x, z].Type == CellType.ROOM_FLOOR)
+                {
+                    if (entranceCell == null)
+                    {
+                        entranceCell = cells[x, z];
+                    }
+                    else
+                    {
+                        // If it's further than the last exit, use 
+                        distance = Vector2.Distance(
+                            cells[x, z].Position.ToVector2(),
+                            entranceCell.Position.ToVector2()
+                        );
+
+                        if (distance > lastDistance)
+                        {
+                            exitCell = cells[x, z];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Finalize new cell types
+        entranceCell.Type = CellType.ENTRANCE;
+        exitCell.Type = CellType.EXIT;
     }
 
     public void AddPlayer(GameObject player)
