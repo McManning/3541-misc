@@ -6,24 +6,26 @@ public class Dungeon : MonoBehaviour
 {
     private const int MAX_ROOM_ITERATIONS = 200;
 
+    public enum CellType
+    {
+        WALL,
+        ROOM_FLOOR,
+        HALL_FLOOR,
+        DOOR,
+        ENTRANCE,
+        EXIT
+    }
+
     public class CellMetadata
     {
         public IntVector2 Position { get; internal set; }
-        public bool IsWall { get; internal set; }
+        public CellType Type { get; internal set; }
         public int Region { get; internal set; }
-        public bool IsConnector { get; internal set; }
-        public bool IsRemovedDeadEnd { get; internal set; }
-        public bool IsStairsUp { get; internal set; }
-        public bool IsStairsDown { get; internal set; }
-
+        
         public CellMetadata(IntVector2 position)
         {
             Position = position;
-            IsWall = true;
-            IsConnector = false;
-            IsRemovedDeadEnd = false;
-            IsStairsDown = false;
-            IsStairsUp = false;
+            Type = CellType.WALL;
             Region = 0;
         }
     }
@@ -52,6 +54,16 @@ public class Dungeon : MonoBehaviour
     public DungeonCell doorPrefab;
 
     /// <summary>
+    /// Prefab GameObject used to render an entrance (stairs up)
+    /// </summary>
+    public DungeonCell entrancePrefab;
+    
+    /// <summary>
+    /// Prefab GameObject used to render an exit (stairs down)
+    /// </summary>
+    public DungeonCell exitPrefab;
+    
+    /// <summary>
     /// Seed for the random number generator
     /// </summary>
     public int randomSeed;
@@ -72,19 +84,23 @@ public class Dungeon : MonoBehaviour
     public float doorLoopChance;
 
     /// <summary>
-    /// Maximum rooms to be generated in the dungeon
+    /// Maximum rooms to be generated in the dungeon.
+    /// Cannot be less than 2, as we need rooms marked for the entrance/exit
     /// </summary>
+    [Range(2, 10)]
     public int desiredRooms;
 
     /// <summary>
     /// Smallest room size to generate (in cells)
     /// </summary>
+    [Range(1, 100)]
     public int minimumRoomSize;
 
     /// <summary>
     /// Largest room size to generate (in cells)
     /// MUST be smaller than size.z and size.x
     /// </summary>
+    [Range(1, 100)]
     public int maximumRoomSize;
 
     /// <summary>
@@ -200,7 +216,7 @@ public class Dungeon : MonoBehaviour
         {
             for (int z = rect.z; z < rect.z + rect.depth; z++)
             {
-                cells[x, z].IsWall = false;
+                cells[x, z].Type = CellType.ROOM_FLOOR;
                 cells[x, z].Region = currentRegion;
                 openCells.Add(cells[x, z]);
             }
@@ -238,12 +254,12 @@ public class Dungeon : MonoBehaviour
     }
 
     /// <summary>
-    /// Mark a cell as a floor for the current region
+    /// Mark a cell as a floor for the current hall
     /// </summary>
     /// <param name="cell"></param>
-    private void Carve(CellMetadata cell)
+    private void CarveHall(CellMetadata cell)
     {
-        cell.IsWall = false;
+        cell.Type = CellType.HALL_FLOOR;
         cell.Region = currentRegion;
     }
 
@@ -307,7 +323,7 @@ public class Dungeon : MonoBehaviour
         {
             if (Contains(cell.Position + dir * 3))
             {
-                if (GetCell(cell.Position + dir * 2).IsWall)
+                if (GetCell(cell.Position + dir * 2).Type == CellType.WALL)
                 {
                     directions.Add(dir);
                 }
@@ -333,7 +349,7 @@ public class Dungeon : MonoBehaviour
         currentRegion += 1;
 
         // Carve out starting point
-        Carve(start);
+        CarveHall(start);
         frontier.Add(start);
 
         // Loop until we run out of cells we can carve into
@@ -358,12 +374,12 @@ public class Dungeon : MonoBehaviour
                 }
 
                 // Carve into the cell at the given direction
-                Carve(GetCell(cell.Position + lastDirection.Value));
+                CarveHall(GetCell(cell.Position + lastDirection.Value));
 
                 // Carve into the cell after the cell at the given direction
                 // and add that cell as another possible branching path
                 cell = GetCell(cell.Position + lastDirection.Value * 2);
-                Carve(cell);
+                CarveHall(cell);
 
                 frontier.Add(cell);
             }
@@ -403,7 +419,7 @@ public class Dungeon : MonoBehaviour
     {
         foreach (CellMetadata adjacent in GetAdjacentCells(cell, true))
         {
-            if (!adjacent.IsWall)
+            if (adjacent.Type != CellType.WALL)
             {
                 return false;
             }
@@ -527,8 +543,7 @@ public class Dungeon : MonoBehaviour
     /// <param name="cell"></param>
     private void CarveDoor(CellMetadata cell)
     {
-        cell.IsConnector = true;
-        cell.IsWall = false;
+        cell.Type = CellType.DOOR;
     }
     
     /// <summary>
@@ -641,7 +656,7 @@ public class Dungeon : MonoBehaviour
     /// <returns></returns>
     private bool IsDeadEnd(CellMetadata cell)
     {
-        if (cell.IsWall)
+        if (cell.Type == CellType.WALL)
         {
             return false;
         }
@@ -649,7 +664,7 @@ public class Dungeon : MonoBehaviour
         int walls = 0;
         foreach (CellMetadata adjacent in GetAdjacentCells(cell, false))
         {
-            if (adjacent.IsWall)
+            if (adjacent.Type == CellType.WALL)
             {
                 walls++;
             }
@@ -687,9 +702,8 @@ public class Dungeon : MonoBehaviour
 
         while (cell != null)
         {
-            // Fill the cell
-            cell.IsWall = true;
-            cell.IsRemovedDeadEnd = true;
+            // Refill the cell
+            cell.Type = CellType.WALL;
 
             // Search for the next one
             cell = FindDeadEnd();
@@ -702,27 +716,36 @@ public class Dungeon : MonoBehaviour
     /// <param name="position"></param>
     private void CreatePrefab(IntVector2 position)
     {
-        DungeonCell cell;
+        CellMetadata cell = cells[position.x, position.z];
+        DungeonCell gameObject;
         
-        if (cells[position.x, position.z].IsConnector)
+        // Load a different prefab based on the cell type
+        switch (cell.Type)
         {
-            cell = Instantiate(doorPrefab) as DungeonCell;
+            case CellType.DOOR:
+                gameObject = Instantiate(doorPrefab) as DungeonCell;
+                break;
+            case CellType.HALL_FLOOR:
+            case CellType.ROOM_FLOOR:
+                gameObject = Instantiate(floorPrefab) as DungeonCell;
+                break;
+            case CellType.ENTRANCE:
+                gameObject = Instantiate(entrancePrefab) as DungeonCell;
+                break;
+            case CellType.EXIT:
+                gameObject = Instantiate(exitPrefab) as DungeonCell;
+                break;
+            default: // Assume to be a wall
+                gameObject = Instantiate(wallPrefab) as DungeonCell;
+                break;
         }
-        else if (cells[position.x, position.z].IsWall)
-        {
-            cell = Instantiate(wallPrefab) as DungeonCell;
-        }
-        else
-        {
-            cell = Instantiate(floorPrefab) as DungeonCell;
-        }
-
-        cell.LoadMetadata(cells[position.x, position.z]);
+        
+        gameObject.LoadMetadata(cell);
 
         // Transform cell to a local space position relative to its (x, z)
         // Ensuring the parent Dungeon is centered in the generated cells
-        cell.transform.parent = transform;
-        cell.transform.localPosition = new Vector3(
+        gameObject.transform.parent = transform;
+        gameObject.transform.localPosition = new Vector3(
             position.x - size.x * 0.5f + 0.5f,
             0f,
             position.z - size.z * 0.5f + 0.5f

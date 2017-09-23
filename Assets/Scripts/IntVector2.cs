@@ -103,4 +103,9 @@ public struct IntVector2
         a.z *= b;
         return a;
     }
+
+    public Vector2 ToVector2()
+    {
+        return new Vector2(x, z);
+    }
 }
