@@ -39,9 +39,14 @@ public class Dungeon : MonoBehaviour
     public IntVector2 size;
 
     /// <summary>
-    /// Prefab GameObject used to render floors
+    /// Prefab GameObject used to render hallway floors
     /// </summary>
-    public DungeonCell floorPrefab;
+    public DungeonCell hallFloorPrefab;
+
+    /// <summary>
+    /// Prefab GameObject used to render room floors
+    /// </summary>
+    public DungeonCell roomFloorPrefab;
 
     /// <summary>
     /// Prefab GameObject used to render walls
@@ -726,8 +731,10 @@ public class Dungeon : MonoBehaviour
                 gameObject = Instantiate(doorPrefab) as DungeonCell;
                 break;
             case CellType.HALL_FLOOR:
+                gameObject = Instantiate(hallFloorPrefab) as DungeonCell;
+                break;
             case CellType.ROOM_FLOOR:
-                gameObject = Instantiate(floorPrefab) as DungeonCell;
+                gameObject = Instantiate(roomFloorPrefab) as DungeonCell;
                 break;
             case CellType.ENTRANCE:
                 gameObject = Instantiate(entrancePrefab) as DungeonCell;
