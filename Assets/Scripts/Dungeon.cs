@@ -773,8 +773,24 @@ public class Dungeon : MonoBehaviour
     /// <returns></returns>
     public Vector3 GetSpawnPoint()
     {
-        // TODO
-        return new Vector3(0, 2.0f, 0);
+        // Spawn in a cell adjacent to the entrance
+        List<CellMetadata> adjacent = GetAdjacentCells(entranceCell, true);
+        CellMetadata selected = null;
+
+        foreach (CellMetadata cell in adjacent)
+        {
+            if (cell.Type != CellType.WALL)
+            {
+                selected = cell;
+                break;
+            }
+        }
+
+        return new Vector3(
+            selected.Position.x - size.x * 0.5f + 0.5f,
+            0.2f,
+            selected.Position.z - size.z * 0.5f + 0.5f
+        );
     }
 
     /// <summary>
