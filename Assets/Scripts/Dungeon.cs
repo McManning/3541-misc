@@ -140,10 +140,29 @@ public class Dungeon : MonoBehaviour
 	}
 
     /// <summary>
+    /// Sanity checks for prefab configurations
+    /// </summary>
+    private void CheckConfigurations()
+    {
+        if (minimumRoomSize > maximumRoomSize)
+        {
+            throw new System.Exception("Dungeon Minimum Room Size must be <= Maximum Room Size");
+        }
+
+        if (Mathf.Max(size.x, size.z) - 2 < maximumRoomSize)
+        {
+            throw new System.Exception("Maximum room size must be less than MAX(Size X, Size Z) - 2");
+        }
+    }
+
+    /// <summary>
     /// Run through the full generator process
     /// </summary>
     public void Generate()
     {
+        // Run sanity checks before we do anything
+        CheckConfigurations();
+
         currentRegion = 0;
 
         if (randomSeed != 0)
@@ -814,7 +833,7 @@ public class Dungeon : MonoBehaviour
             selected.Position.z - size.z * 0.5f + 0.5f
         );
     }
-
+    
     /// <summary>
     /// Add entrance/exit stairs in rooms furthest from one-another
     /// </summary>
