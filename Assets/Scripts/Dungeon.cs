@@ -98,14 +98,14 @@ public class Dungeon : MonoBehaviour
     /// <summary>
     /// Smallest room size to generate (in cells)
     /// </summary>
-    [Range(1, 100)]
+    [Range(3, 100)]
     public int minimumRoomSize;
 
     /// <summary>
     /// Largest room size to generate (in cells)
     /// MUST be smaller than size.z and size.x
     /// </summary>
-    [Range(1, 100)]
+    [Range(3, 100)]
     public int maximumRoomSize;
 
     /// <summary>
@@ -284,9 +284,13 @@ public class Dungeon : MonoBehaviour
     /// <param name="cell"></param>
     /// <param name="includeIntercardinals"></param>
     /// <returns></returns>
-    private List<CellMetadata> GetAdjacentCells(CellMetadata cell, bool includeIntercardinals)
-    {
-        List<CellMetadata> adjacent = new List<CellMetadata>();
+    private List<CellMetadata> GetAdjacentCells(
+        CellMetadata cell, 
+        bool includeIntercardinals, 
+        CellType? typeFilter = null
+    ) {
+        List<CellMetadata> adjacencyList = new List<CellMetadata>();
+        CellMetadata adjacent;
         IntVector2 position;
 
         // Grab cells in all cardinal directions
@@ -295,10 +299,15 @@ public class Dungeon : MonoBehaviour
             position = cell.Position + direction;
             if (Contains(position))
             {
-                adjacent.Add(GetCell(position));
+                adjacent = GetCell(position);
+
+                if (!typeFilter.HasValue || adjacent.Type == typeFilter.Value)
+                {
+                    adjacencyList.Add(adjacent);
+                }
             }
         }
-
+        
         // If they ask for intercardinals, grab those too
         if (includeIntercardinals)
         {
@@ -307,12 +316,17 @@ public class Dungeon : MonoBehaviour
                 position = cell.Position + direction;
                 if (Contains(position))
                 {
-                    adjacent.Add(GetCell(position));
+                    adjacent = GetCell(position);
+
+                    if (!typeFilter.HasValue || adjacent.Type == typeFilter.Value)
+                    {
+                        adjacencyList.Add(adjacent);
+                    }
                 }
             }
         }
 
-        return adjacent;
+        return adjacencyList;
     }
 
     /// <summary>
@@ -661,7 +675,8 @@ public class Dungeon : MonoBehaviour
     /// <returns></returns>
     private bool IsDeadEnd(CellMetadata cell)
     {
-        if (cell.Type == CellType.WALL)
+        // Ignore walls that are surrounded by walls and rooms that are 1x1
+        if (cell.Type == CellType.WALL || cell.Type == CellType.ROOM_FLOOR)
         {
             return false;
         }
@@ -810,39 +825,50 @@ public class Dungeon : MonoBehaviour
         // furthest ROOM_FLOOR for an exit. 
         float lastDistance = -1;
         float distance;
+        int x;
+        int z;
 
         entranceCell = null;
         exitCell = null;
 
-        for (int x = 0; x < size.x; x++)
+        // Search for a dungeon entrance
+        for (x = 0; x < size.x && entranceCell == null; x++)
         {
-            for (int z = 0; z < size.z; z++)
+            for (z = 0; z < size.z && entranceCell == null; z++)
             {
-                if (cells[x, z].Type == CellType.ROOM_FLOOR)
-                {
-                    if (entranceCell == null)
-                    {
-                        entranceCell = cells[x, z];
-                    }
-                    else
-                    {
-                        // If it's further than the last exit, use 
-                        distance = Vector2.Distance(
-                            cells[x, z].Position.ToVector2(),
-                            entranceCell.Position.ToVector2()
-                        );
+                // If it's a room floor that isn't next to any walls, select it
+                if (cells[x, z].Type == CellType.ROOM_FLOOR &&
+                    GetAdjacentCells(cells[x, z], false, CellType.WALL).Count == 0
+                ) {
+                    entranceCell = cells[x, z];
+                    entranceCell.Type = CellType.ENTRANCE;
+                }
+            }
+        }
 
-                        if (distance > lastDistance)
-                        {
-                            exitCell = cells[x, z];
-                        }
+        // Search for a possible exit furthest from the entrance
+        for (x = 0; x < size.x; x++)
+        {
+            for (z = 0; z < size.z; z++)
+            {
+                if (cells[x, z].Type == CellType.ROOM_FLOOR &&
+                    GetAdjacentCells(cells[x, z], false, CellType.WALL).Count == 0
+                ) {
+                    // If it's further than the last exit, use 
+                    distance = Vector2.Distance(
+                        cells[x, z].Position.ToVector2(),
+                        entranceCell.Position.ToVector2()
+                    );
+
+                    if (distance > lastDistance)
+                    {
+                        exitCell = cells[x, z];
                     }
                 }
             }
         }
 
         // Finalize new cell types
-        entranceCell.Type = CellType.ENTRANCE;
         exitCell.Type = CellType.EXIT;
     }
 
