@@ -54,11 +54,15 @@ MonoBehaviour:
   size:
     x: 31
     z: 31
-  floorPrefab: {fileID: 114877714803449790, guid: 9e6ff803f38e8644caa6883a2b6618ee,
+  floorPrefab: {fileID: 114593294376185546, guid: 9e6ff803f38e8644caa6883a2b6618ee,
     type: 2}
-  wallPrefab: {fileID: 114019131309593900, guid: f6a88779cbf717c458a46023d4a41592,
+  wallPrefab: {fileID: 114641885122932780, guid: f6a88779cbf717c458a46023d4a41592,
     type: 2}
-  doorPrefab: {fileID: 114766508295641804, guid: 49fa04834b64263459bf1a536ea2893e,
+  doorPrefab: {fileID: 114968352314215606, guid: 49fa04834b64263459bf1a536ea2893e,
+    type: 2}
+  entrancePrefab: {fileID: 114987549443185278, guid: 937c71da77402ff459f1b919301f0147,
+    type: 2}
+  exitPrefab: {fileID: 114222921620166574, guid: 8e8e427f7a9c49748b2cf442c00d9b9d,
     type: 2}
   randomSeed: 0
   hallwayRandomness: 0.25

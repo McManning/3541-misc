@@ -19,7 +19,7 @@ GameObject:
   serializedVersion: 5
   m_Component:
   - component: {fileID: 4715603292899968}
-  - component: {fileID: 114877714803449790}
+  - component: {fileID: 114593294376185546}
   m_Layer: 0
   m_Name: Dungeon Floor
   m_TagString: Untagged
@@ -125,7 +125,7 @@ MeshCollider:
   m_InflateMesh: 0
   m_SkinWidth: 0.01
   m_Mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &114877714803449790
+--- !u!114 &114593294376185546
 MonoBehaviour:
   m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}
