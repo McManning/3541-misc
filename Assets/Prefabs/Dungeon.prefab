@@ -54,7 +54,9 @@ MonoBehaviour:
   size:
     x: 31
     z: 31
-  floorPrefab: {fileID: 114593294376185546, guid: 9e6ff803f38e8644caa6883a2b6618ee,
+  hallFloorPrefab: {fileID: 114593294376185546, guid: 9e6ff803f38e8644caa6883a2b6618ee,
+    type: 2}
+  roomFloorPrefab: {fileID: 114296521735644060, guid: 430c0e14b8f5b1241a8f49cb0d708a92,
     type: 2}
   wallPrefab: {fileID: 114641885122932780, guid: f6a88779cbf717c458a46023d4a41592,
     type: 2}
@@ -65,7 +67,7 @@ MonoBehaviour:
   exitPrefab: {fileID: 114222921620166574, guid: 8e8e427f7a9c49748b2cf442c00d9b9d,
     type: 2}
   randomSeed: 0
-  hallwayRandomness: 0.25
+  hallwayRandomness: 0.4
   doorLoopChance: 0.02
   desiredRooms: 5
   minimumRoomSize: 5

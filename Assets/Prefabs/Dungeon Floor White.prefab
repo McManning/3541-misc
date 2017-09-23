@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 4715603292899968}
   - component: {fileID: 114593294376185546}
   m_Layer: 0
-  m_Name: Dungeon Floor
+  m_Name: Dungeon Floor White
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
