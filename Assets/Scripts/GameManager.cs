@@ -9,6 +9,8 @@ public class GameManager : MonoBehaviour
 
     public float sceneRotationSpeed;
 
+    public Rect minimapRect;
+
     private Dungeon dungeonInstance;
 
     private bool isSceneRotating;
@@ -48,10 +50,16 @@ public class GameManager : MonoBehaviour
 
     private void Setup()
     {
+        Camera.main.clearFlags = CameraClearFlags.Skybox;
+        Camera.main.rect = new Rect(0.0f, 0.0f, 1.0f, 1.0f);
+
         dungeonInstance = Instantiate(dungeonPrefab) as Dungeon;
         dungeonInstance.Generate();
 
         dungeonInstance.AddPlayer(player);
+
+        Camera.main.clearFlags = CameraClearFlags.Depth;
+        Camera.main.rect = minimapRect;
     }
 
     private void Restart()
