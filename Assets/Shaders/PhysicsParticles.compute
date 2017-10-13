@@ -39,12 +39,15 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	// Starting position - a grid based on the index #
 	int width = sqrt(ParticleCount);
-	float3 position = float3(id.x % width, id.x / width, 0.0);
+	float3 position = float3(id.x % width * 0.25, id.x / width * 0.25, 0.0);
 
 	// Basic sine wave - offsetting phase by the delta time
-	float phase = t * 0.05; 
-	float offset = (position.x + position.y) * 2.0;
-	position.z = sin(phase + offset) * 5.0;
+	float speed = 2.0;
+	float frequency = 0.5;
+	float scale = 1.0;
+
+	float v = position.x * position.x + position.y * position.y;
+	position.z = scale * sin(t * speed + v * frequency);
 
 	ParticleBuffer[id.x].position = position;
 	

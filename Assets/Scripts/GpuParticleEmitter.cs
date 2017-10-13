@@ -86,7 +86,7 @@ public class GpuParticleEmitter : MonoBehaviour
     void Update()
     {
         ParticleSystemMetadata[] meta = new ParticleSystemMetadata[1];
-        meta[0].time = Time.deltaTime;
+        meta[0].time = Time.realtimeSinceStartup;
 
         metadataBuffer.SetData(meta);
         
