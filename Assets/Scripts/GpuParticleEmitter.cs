@@ -11,11 +11,19 @@ public class GpuParticleEmitter : MonoBehaviour
     public Vector4 color;
     public GameObject debugTarget;
     public Material material;
-
-    [Range(1, 1024)]
+    
     public int particleCount;
 
+    /// <summary>
+    /// GPU buffer of all our distinct particles
+    /// </summary>
     private ComputeBuffer particleBuffer;
+
+    /// <summary>
+    /// GPU buffer of particle system metadata (uploaded from CPU once per frame)
+    /// </summary>
+    private ComputeBuffer metadataBuffer;
+
     private int kernel;
 
     public struct Particle
@@ -24,7 +32,15 @@ public class GpuParticleEmitter : MonoBehaviour
         public Color color; // 4 floats - 16 bytes
     }
 
-	void Start ()
+    /// <summary>
+    /// Additional metadata sent to the compute shader per draw call
+    /// </summary>
+    struct ParticleSystemMetadata
+    {
+        public float time;
+    }
+
+    void Start ()
     {
         kernel = computeShader.FindKernel("CSMain");
 
@@ -46,48 +62,60 @@ public class GpuParticleEmitter : MonoBehaviour
 
         Particle[] particles = new Particle[particleCount];
         particleBuffer = new ComputeBuffer(particles.Length, 28);
-
-        // ... etc
-
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
+        // TODO: is it more efficient to use this - or to use a SetFloat/SetVector/etc each draw call?
+        metadataBuffer = new ComputeBuffer(1, 4);
+        computeShader.SetBuffer(kernel, "MetadataBuffer", metadataBuffer);
+
         // Execute with one thread per "pixel" 
-        computeShader.Dispatch(kernel, particleCount, 1, 1); // 256 / 8, 256 / 8, 1);
+        // computeShader.Dispatch(kernel, particleCount, 1, 1); // 256 / 8, 256 / 8, 1);
 
         // need to push that texture back into something - like another shader.
 
         // Quick test to pull the buffer back out for analysis
-        Particle[] output = new Particle[particleCount];
-        particleBuffer.GetData(output);
+        //Particle[] output = new Particle[particleCount];
+        //particleBuffer.GetData(output);
 
-        Debug.Log(output[55].color);
+        //Debug.Log(output[55].color);
 	}
-	
-    /**
-     * Recompute particles once per frame
-     */
-	void Update ()
+
+    /// <summary>
+    /// Recompute particles once per frame
+    /// </summary>
+    void Update()
     {
+        ParticleSystemMetadata[] meta = new ParticleSystemMetadata[1];
+        meta[0].time = Time.deltaTime;
+
+        metadataBuffer.SetData(meta);
+        
         // Redispatch test
         computeShader.Dispatch(kernel, particleCount, 1, 1);
     }
 
-    /**
-     * Called after all regular rendering IFF this script is attached to the camera
-     */
-    void OnPostRender()
+    /// <summary>
+    /// Called *after* the camera has rendered the scene. Unlike OnPostRender,
+    /// this script can be attached to any object and this'll be called. 
+    /// </summary>
+    void OnRenderObject()
     {
+        // TODO: Required to SetBuffer every draw?
         material.SetBuffer("ParticleBuffer", particleBuffer);
         material.SetPass(0);
 
+        // Debug.Log("Draw call " + particleCount);
+
+        // Run ParticleShader over the scene
         Graphics.DrawProcedural(MeshTopology.Points, particleCount, 1);
     }
 
-    /**
-     * Cleanup lingering compute buffer from the GPU
-     */
-    void OnDestroy()
+    /// <summary>
+    /// Cleanup lingering compute buffer from the GPU
+    /// </summary>
+    void OnDisable()
     {
         particleBuffer.Dispose();
+        metadataBuffer.Dispose();
     }
 }

@@ -2,25 +2,31 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-RWTexture2D<float4> Result;
+// Static metadata
 float Randomness;
 float4 Color;
 int ParticleCount;
 
+// Properties of a distinct particle in the system
 struct Particle
 {
 	float3 position;
 	float4 color;
 };
 
+// Metadata that changes per-frame
+struct ParticleSystemMetadata
+{
+	float time;
+};
+
 RWStructuredBuffer<Particle> ParticleBuffer;
+StructuredBuffer<ParticleSystemMetadata> MetadataBuffer;
 
 // [numthreads(8,8,1)]
 [numthreads(16,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID) 
 {
-	// TODO: insert actual code here!
-
 	/*
 		Some notes:
 		id is our thread index (.x/.y for a 2D set of threads). Basically
@@ -29,6 +35,24 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	// Result[id.xy] = Color; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 
-	ParticleBuffer[id.x].color = Color;
+	float t = MetadataBuffer[0].time;
+
+	// Starting position - a grid based on the index #
+	int width = sqrt(ParticleCount);
+	float3 position = float3(id.x % width, id.x / width, 0.0);
+
+	// Basic sine wave - offsetting phase by the delta time
+	float phase = t * 0.05; 
+	float offset = (position.x + position.y) * 2.0;
+	position.z = sin(phase + offset) * 5.0;
+
+	ParticleBuffer[id.x].position = position;
+	
+	// Give a random interpolated color - red for low indices, green for high
+	float red = (float)id / ParticleCount;
+	float green = 1.0 - red;
+	float blue = 0.0;
+
+	ParticleBuffer[id.x].color = float4(red, green, blue, 1.0);
 }
 
