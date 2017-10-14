@@ -13,6 +13,7 @@ float MaxLife;
 float3 ConstantAcceleration;
 float3 InitialAcceleration;
 float TerminalVelocity;
+float DampingRatio;
 
 // Properties of a distinct particle in the system
 // MUST match GpuParticleSystem.Particle
@@ -93,14 +94,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		// Start at a random position in the emitter
 		float angle = 2.0 * PI * random();
 		float r = random() * EmitterRadius;
-
+		
 		ParticleBuffer[id.x].position = float3(
 			EmitterPosition.x + cos(angle) * r,
 			EmitterPosition.y,
 			EmitterPosition.z + sin(angle) * r
 		);
 
-		// Hardcode an initial velocity
+		// Initial velocity is some random factor of our initial acceleration setting
 		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
 
 		ParticleBuffer[id.x].color = float4(
@@ -138,7 +139,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 			// Kill acceleration and reflect velocity
 			acceleration = 0;
-			velocity = reflection;
+			velocity = reflection * DampingRatio;
 			// velocity = length(velocity) / length(reflection) * reflection; // * 0.7; damping factor likes to make velocity hit zero...
 		}
 
