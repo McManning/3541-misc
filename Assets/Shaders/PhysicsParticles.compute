@@ -26,19 +26,29 @@ struct Particle
 	float life;
 };
 
+struct CollisionSphere
+{
+	float3 position;
+	float radius;
+};
+
 // Metadata that changes per-frame
 // MUST match GpuParticleSystem.FrameMetadata
 struct FrameMetadata
 {
 	float time;
+	float3 groundPlanePosition;
+	float3 groundPlaneNormal;
+
+	float3 spherePosition;
+	float sphereRadius;
 };
 
 RWStructuredBuffer<Particle> ParticleBuffer;
 RWStructuredBuffer<float3> VertexBuffer;
 StructuredBuffer<FrameMetadata> MetadataBuffer;
+StructuredBuffer<CollisionSphere> CollisionSpheresBuffer;
 
-// rand_lcg() and rand_xorshift() sourced via 
-// http://www.reedbeta.com/blog/quick-and-easy-gpu-random-numbers-in-d3d11/
 uint rng_state;
 
 /**
@@ -58,8 +68,8 @@ float random()
 static const float PI = 3.14159265f;
 
 // [numthreads(8,8,1)]
-[numthreads(16,1,1)] // TODO: Better threading split 
-void CSMain (uint3 id : SV_DispatchThreadID) 
+[numthreads(16, 1, 1)] // TODO: Better threading split 
+void CSMain(uint3 id : SV_DispatchThreadID)
 {
 	/*
 		Some notes:
@@ -117,7 +127,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 			EmitterPosition.x + cos(angle) * r,
 			EmitterPosition.y,
 			EmitterPosition.z + sin(angle) * r
-		);
+			);
 
 		// Hardcode an initial velocity
 		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
@@ -135,11 +145,24 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 		// Initialize acceleration with gravity - if supplied
 		float3 acceleration = ConstantAcceleration;
 
-		// elastic collision response with a sphere
-		if (distance(pos, collider) < radius) {
-			float3 normal = normalize(collider - pos);
-			// float3 reflection = 2 * normal * normal * ParticleBuffer[id.x].velocity;
-			float3 reflection = velocity - 2 * dot(velocity, normal) * normal;
+		uint count, dummy;
+		CollisionSpheresBuffer.GetDimensions(count, dummy);
+
+		float3 normal, reflection;
+		/*
+		for (uint i = 0; i < count; i++) {
+			if (distance(pos, CollisionSpheresBuffer[i].position) < CollisionSpheresBuffer[i].radius) {
+				normal = normalize(CollisionSpheresBuffer[i].position - pos);
+				reflection = velocity - 2 * dot(velocity, normal) * normal;
+				acceleration = 0;
+				velocity = reflection;
+			}
+		}
+		*/
+
+		if (distance(pos, MetadataBuffer[0].spherePosition) < MetadataBuffer[0].sphereRadius) {
+			normal = normalize(MetadataBuffer[0].spherePosition - pos);
+			reflection = velocity - 2 * dot(velocity, normal) * normal;
 
 			// TODO: Damping multiplier?
 
@@ -156,6 +179,8 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 			0, 
 			TerminalVelocity
 		);
+
+		ParticleBuffer[id.x].velocity = velocity + acceleration;
 
 		// Update position with velocity vector
 		ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
