@@ -80,4 +80,32 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 	VertexBuffer[3 * id.x + 1] = float3(-0.5, -0.5, 0);
 	VertexBuffer[3 * id.x + 2] = float3(0.5, -0.5, 0);
 
+	bool dead = ParticleBuffer[id.x].life < 0.001;
+
+	if (dead) {
+		ParticleBuffer[id.x].life = MinLife + random() * MaxLife;
+
+		// Start at a random position in the emitter
+		ParticleBuffer[id.x].position = float3(
+			// TODO: Randomness
+			EmitterPosition.x + id.x % width * 0.1,
+			EmitterPosition.y,
+			EmitterPosition.z + id.x / width * 0.1
+		);
+
+		// Hardcode an initial velocity
+		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
+	}
+	else {
+		// Decrement life
+		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - dt;
+
+		// Update position with velocity vector
+		ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
+	}
+
+	// Color is a lerp between start and end colors, based on 
+	// how long this particle has been alive. TODO: In fragment shader?
+	float a = ParticleBuffer[id.x].life / MaxLife;
+	ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
 }
