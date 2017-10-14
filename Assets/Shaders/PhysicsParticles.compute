@@ -126,6 +126,37 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 		// Age the particle towards zero
 		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - dt;
 
+		// Super simple spherical collision response with a fixed sphere
+		float3 velocity = ParticleBuffer[id.x].velocity;
+		float3 pos = ParticleBuffer[id.x].position + velocity;
+		float3 collider = float3(0.0, -5.0, 0.0);
+		float radius = 5.0;
+
+		// Initialize acceleration with gravity - if supplied
+		float3 acceleration = ConstantAcceleration;
+
+		// elastic collision response with a sphere
+		if (distance(pos, collider) < radius) {
+			float3 normal = normalize(collider - pos);
+			// float3 reflection = 2 * normal * normal * ParticleBuffer[id.x].velocity;
+			float3 reflection = velocity - 2 * dot(velocity, normal) * normal;
+
+			// TODO: Damping multiplier?
+
+			// Kill acceleration and reflect velocity
+			acceleration = 0;
+			velocity = reflection;
+			// velocity = length(velocity) / length(reflection) * reflection; // * 0.7; damping factor likes to make velocity hit zero...
+		}
+
+		// Update velocity with acceleration and clamp to some
+		// terminal velocity so it won't go nuts
+		ParticleBuffer[id.x].velocity = clamp(
+			velocity + acceleration, 
+			0, 
+			TerminalVelocity
+		);
+
 		// Update position with velocity vector
 		ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
 	}
