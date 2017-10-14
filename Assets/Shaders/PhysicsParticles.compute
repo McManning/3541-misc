@@ -80,9 +80,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 	// Set 3 vertices that represent our particle
 	// TODO: This is a waste of repeated memory. See if there's a way to optimize this away.
-	VertexBuffer[3 * id.x] = float3(0, 0.5, 0);
-	VertexBuffer[3 * id.x + 1] = float3(-0.5, -0.5, 0);
-	VertexBuffer[3 * id.x + 2] = float3(0.5, -0.5, 0);
+	//VertexBuffer[3 * id.x] = float3(0, 0.5, 0);
+	//VertexBuffer[3 * id.x + 1] = float3(-0.5, -0.5, 0);
+	//VertexBuffer[3 * id.x + 2] = float3(0.5, -0.5, 0);
 
 	bool dead = ParticleBuffer[id.x].life < 0.001;
 

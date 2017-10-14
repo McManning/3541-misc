@@ -165,6 +165,13 @@ public class GpuParticleEmitter : MonoBehaviour
         computeShader.SetBuffer(kernel, "MetadataBuffer", metadataBuffer);
         
         Vector3[] vertices = new Vector3[particleCount * 3];
+        for (int i = 0; i < vertices.Length; i += 3)
+        {
+            vertices[i] = new Vector3(0f, 0.5f, 0f);
+            vertices[i + 1] = new Vector3(-0.5f, -0.5f, 0f);
+            vertices[i + 2] = new Vector3(0.5f, -0.5f, 0f);
+        }
+
         vertexBuffer = new ComputeBuffer(vertices.Length, Marshal.SizeOf(typeof(Vector3)));
         vertexBuffer.SetData(vertices);
         computeShader.SetBuffer(kernel, "VertexBuffer", vertexBuffer);
