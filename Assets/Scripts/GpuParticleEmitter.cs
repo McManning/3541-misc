@@ -74,12 +74,10 @@ public class GpuParticleEmitter : MonoBehaviour
     /// GPU buffer of all our distinct particles
     /// </summary>
     private ComputeBuffer particleBuffer;
-
+    
     /// <summary>
-    /// GPU buffer of particle system metadata (uploaded from CPU once per frame)
+    /// GPU buffer of vertex data (constant)
     /// </summary>
-    private ComputeBuffer metadataBuffer;
-
     private ComputeBuffer vertexBuffer;
 
     /// <summary>
@@ -91,6 +89,9 @@ public class GpuParticleEmitter : MonoBehaviour
 
     #endregion
     
+    /// <summary>
+    /// Compute shader kernel to execute each update
+    /// </summary>
     private int kernel;
 
     /// <summary>
@@ -110,37 +111,39 @@ public class GpuParticleEmitter : MonoBehaviour
         // ~ 53 MB at 1mil particles
     }
     
-    /// <summary>
-    /// Additional non-constant metadata sent to the compute shader per draw call
-    /// </summary>
-    struct FrameMetadata
+    private void UpdateComputeShaderSettings()
     {
-        public float time;
+        // Emitter properties
+        computeShader.SetInt("ParticleCount", particleCount);
+        computeShader.SetVector("EmitterPosition", transform.position);
+        computeShader.SetFloat("EmitterRadius", emitterRadius);
 
-        public Vector3 emitterPosition;
-        public Vector3 spherePosition;
-        public float sphereRadius;
+        // Particle properties
+        computeShader.SetVector("StartColor", startColor);
+        computeShader.SetVector("EndColor", startColor);
+        computeShader.SetFloat("MinLife", minLife);
+        computeShader.SetFloat("MaxLife", maxLife);
+
+        // Physics simulation
+        computeShader.SetFloat("DeltaTime", Time.deltaTime);
+        computeShader.SetVector("InitialAcceleration", initialAcceleration);
+        computeShader.SetVector("ConstantAcceleration", constantAcceleration);
+        computeShader.SetFloat("DampingRatio", dampingRatio);
+
+        // Colliders
+        computeShader.SetVector("SphereColliderPosition", collisionSphere.transform.position);
+        computeShader.SetFloat("SphereColliderRadius", collisionSphere.transform.lossyScale.x * 0.5f);
     }
-    
+
     void Start ()
     {
+        // TODO: Look into SystemInfo.supportsComputeShaders check
+
         kernel = computeShader.FindKernel("CSMain");
         
         collisionSphere = GameObject.Find("Sphere");
 
-        // TODO: Look into SystemInfo.supportsComputeShaders check
-        
-        // Set constant properties of the particle system
-        computeShader.SetInt("ParticleCount", particleCount);
-        computeShader.SetVector("StartColor", startColor);
-        computeShader.SetVector("EndColor", startColor);
-        computeShader.SetVector("EmitterPosition", transform.position);
-        computeShader.SetFloat("EmitterRadius", emitterRadius);
-        computeShader.SetFloat("MinLife", minLife);
-        computeShader.SetFloat("MaxLife", maxLife);
-        computeShader.SetVector("InitialAcceleration", initialAcceleration);
-        computeShader.SetVector("ConstantAcceleration", constantAcceleration);
-        computeShader.SetFloat("DampingRatio", dampingRatio);
+        UpdateComputeShaderSettings();
 
         // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
@@ -148,10 +151,7 @@ public class GpuParticleEmitter : MonoBehaviour
         particleBuffer.SetData(particles);
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
-        // TODO: is it more efficient to use this - or to use a SetFloat/SetVector/etc each draw call?
-        metadataBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(FrameMetadata)));
-        computeShader.SetBuffer(kernel, "MetadataBuffer", metadataBuffer);
-        
+        // Generate static buffer of triangles - one per particle
         Vector3[] vertices = new Vector3[particleCount * 3];
         for (int i = 0; i < vertices.Length; i += 3)
         {
@@ -170,15 +170,9 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     void Update()
     {
-        FrameMetadata[] meta = new FrameMetadata[1];
-        meta[0].time = Time.deltaTime;
-        meta[0].emitterPosition = transform.position;
-        meta[0].spherePosition = collisionSphere.transform.position;
-        meta[0].sphereRadius = collisionSphere.transform.lossyScale.x * 0.5f; // Assume all scales are equivalent...
-
-        metadataBuffer.SetData(meta);
+        UpdateComputeShaderSettings();
         
-        // Redispatch test
+        // Execute kernel to parallel update all particles
         computeShader.Dispatch(kernel, particleCount, 1, 1);
         
         // Particle[] output = new Particle[particleCount];
@@ -207,7 +201,6 @@ public class GpuParticleEmitter : MonoBehaviour
     void OnDisable()
     {
         particleBuffer.Dispose();
-        metadataBuffer.Dispose();
         vertexBuffer.Dispose();
     }
 }

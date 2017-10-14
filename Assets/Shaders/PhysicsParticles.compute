@@ -2,16 +2,26 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Constant properties of the particle system
+// Emitter properites
 int ParticleCount;
+float3 EmitterPosition;
+float EmitterRadius;
+
+// Particle properties
 float4 StartColor;
 float4 EndColor;
-float EmitterRadius;
 float MinLife;
 float MaxLife;
+
+// Physics simulation
+float DeltaTime;
 float3 ConstantAcceleration;
 float3 InitialAcceleration;
 float DampingRatio;
+
+// Colliders
+float3 SphereColliderPosition;
+float SphereColliderRadius;
 
 // Properties of a distinct particle in the system
 // MUST match GpuParticleSystem.Particle
@@ -25,27 +35,8 @@ struct Particle
 	float life;
 };
 
-struct CollisionSphere
-{
-	float3 position;
-	float radius;
-};
-
-// Metadata that changes per-frame
-// MUST match GpuParticleSystem.FrameMetadata
-struct FrameMetadata
-{
-	float time;
-
-	float3 emitterPosition;
-	float3 spherePosition;
-	float sphereRadius;
-};
-
 RWStructuredBuffer<Particle> ParticleBuffer;
-RWStructuredBuffer<float3> VertexBuffer;
-StructuredBuffer<FrameMetadata> MetadataBuffer;
-StructuredBuffer<CollisionSphere> CollisionSpheresBuffer;
+StructuredBuffer<float3> VertexBuffer;
 
 uint rng_state;
 
@@ -69,12 +60,10 @@ static const float PI = 3.14159265f;
 [numthreads(16, 1, 1)] // TODO: Better threading split 
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
-	float dt = MetadataBuffer[0].time;
-
 	// Seed random generator based on thread ID/current time
 	// We need high numbers to get better random results, so 
 	// we make this as high as possible and overflow the hell out of it
-	rng_state = id.x * 100000.0 * dt;
+	rng_state = id.x * 100000.0 * DeltaTime;
 
 	// Set 3 vertices that represent our particle
 	// TODO: This is a waste of repeated memory. See if there's a way to optimize this away.
@@ -93,9 +82,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		float r = random() * EmitterRadius;
 		
 		ParticleBuffer[id.x].position = float3(
-			MetadataBuffer[0].emitterPosition.x + cos(angle) * r,
-			MetadataBuffer[0].emitterPosition.y,
-			MetadataBuffer[0].emitterPosition.z + sin(angle) * r
+			EmitterPosition.x + cos(angle) * r,
+			EmitterPosition.y,
+			EmitterPosition.z + sin(angle) * r
 		);
 
 		// Initial velocity is some random factor of our initial acceleration setting
@@ -110,7 +99,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	}
 	else {
 		// Age the particle towards zero
-		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - dt;
+		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
 
 		float3 velocity = ParticleBuffer[id.x].velocity;
 		float3 pos = ParticleBuffer[id.x].position + velocity;
@@ -118,16 +107,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		// Initialize acceleration with gravity - if supplied
 		float3 acceleration = ConstantAcceleration;
 
-		uint count, dummy;
-		CollisionSpheresBuffer.GetDimensions(count, dummy);
-
 		float3 normal, reflection;
 
 		// Super simple spherical collision response with a sphere
-		float d = distance(pos, MetadataBuffer[0].spherePosition);
-		float rad = MetadataBuffer[0].sphereRadius + 0.1;
+		float d = distance(pos, SphereColliderPosition);
+		float rad = SphereColliderRadius + 0.1;
 		if (d < rad) {
-			normal = normalize(MetadataBuffer[0].spherePosition - pos);
+			normal = normalize(SphereColliderPosition - pos);
 			reflection = velocity - 2 * dot(velocity, normal) * normal;
 
 			// TODO: Damping multiplier?
@@ -152,9 +138,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
 	}
 
-	// Color is a lerp between start and end colors, based on 
-	// how long this particle has been alive. TODO: In fragment shader?
-	// float a = ParticleBuffer[id.x].life / MaxLife;
-	// ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
-	// ParticleBuffer[id.x].color = float4(random(), random(), random(), 1.0);
+	// Change opacity based on remaining life
+	ParticleBuffer[id.x].color.a = saturate(ParticleBuffer[id.x].life / MinLife);
 }
