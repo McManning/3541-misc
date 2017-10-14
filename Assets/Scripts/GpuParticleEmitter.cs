@@ -216,7 +216,7 @@ public class GpuParticleEmitter : MonoBehaviour
         FrameMetadata[] meta = new FrameMetadata[1];
         meta[0].time = Time.deltaTime;
         meta[0].spherePosition = collisionSphere.transform.position;
-        meta[0].sphereRadius = collisionSphere.transform.lossyScale.x; // Assume all scales are equivalent...
+        meta[0].sphereRadius = collisionSphere.transform.lossyScale.x * 0.5f; // Assume all scales are equivalent...
 
         metadataBuffer.SetData(meta);
 

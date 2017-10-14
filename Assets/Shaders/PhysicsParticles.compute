@@ -123,14 +123,20 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		float r = random() * EmitterRadius;
 
 		ParticleBuffer[id.x].position = float3(
-			// TODO: Randomness
 			EmitterPosition.x + cos(angle) * r,
 			EmitterPosition.y,
 			EmitterPosition.z + sin(angle) * r
-			);
+		);
 
 		// Hardcode an initial velocity
 		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
+
+		ParticleBuffer[id.x].color = float4(
+			saturate(random() + 0.25), 
+			saturate(random() + 0.25), 
+			saturate(random() + 0.25), 
+			1.0
+		);
 	}
 	else {
 		// Age the particle towards zero
@@ -160,7 +166,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		}
 		*/
 
-		if (distance(pos, MetadataBuffer[0].spherePosition) < MetadataBuffer[0].sphereRadius) {
+		float d = distance(pos, MetadataBuffer[0].spherePosition);
+		float rad = MetadataBuffer[0].sphereRadius;
+		if (d < rad) {
 			normal = normalize(MetadataBuffer[0].spherePosition - pos);
 			reflection = velocity - 2 * dot(velocity, normal) * normal;
 
@@ -188,6 +196,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 	// Color is a lerp between start and end colors, based on 
 	// how long this particle has been alive. TODO: In fragment shader?
-	float a = ParticleBuffer[id.x].life / MaxLife;
-	ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
+	// float a = ParticleBuffer[id.x].life / MaxLife;
+	// ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
+	// ParticleBuffer[id.x].color = float4(random(), random(), random(), 1.0);
 }
