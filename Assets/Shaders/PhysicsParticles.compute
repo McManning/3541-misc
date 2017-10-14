@@ -6,7 +6,6 @@
 int ParticleCount;
 float4 StartColor;
 float4 EndColor;
-float3 EmitterPosition;
 float EmitterRadius;
 float MinLife;
 float MaxLife;
@@ -37,9 +36,8 @@ struct CollisionSphere
 struct FrameMetadata
 {
 	float time;
-	float3 groundPlanePosition;
-	float3 groundPlaneNormal;
 
+	float3 emitterPosition;
 	float3 spherePosition;
 	float sphereRadius;
 };
@@ -95,9 +93,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		float r = random() * EmitterRadius;
 		
 		ParticleBuffer[id.x].position = float3(
-			EmitterPosition.x + cos(angle) * r,
-			EmitterPosition.y,
-			EmitterPosition.z + sin(angle) * r
+			MetadataBuffer[0].emitterPosition.x + cos(angle) * r,
+			MetadataBuffer[0].emitterPosition.y,
+			MetadataBuffer[0].emitterPosition.z + sin(angle) * r
 		);
 
 		// Initial velocity is some random factor of our initial acceleration setting
@@ -127,7 +125,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 		// Super simple spherical collision response with a sphere
 		float d = distance(pos, MetadataBuffer[0].spherePosition);
-		float rad = MetadataBuffer[0].sphereRadius + 0.5;
+		float rad = MetadataBuffer[0].sphereRadius + 0.1;
 		if (d < rad) {
 			normal = normalize(MetadataBuffer[0].spherePosition - pos);
 			reflection = velocity - 2 * dot(velocity, normal) * normal;
@@ -142,7 +140,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 		// Collision response with ground plane (fixed)
 		// d = abs(dot(pos, normal));
-		if (pos.y < 0.5) {
+		if (pos.y < 0.1) {
 			reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
 			acceleration = 0;
 			velocity = reflection * DampingRatio;

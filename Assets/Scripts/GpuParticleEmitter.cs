@@ -87,11 +87,6 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     private List<GameObject> collisionSpheres;
     
-    /// <summary>
-    /// Ground plane for planar collisions
-    /// </summary>
-    private GameObject groundPlane;
-
     private GameObject collisionSphere;
 
     #endregion
@@ -120,24 +115,17 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     struct FrameMetadata
     {
-        public float time; // 4 bytes
-        public Vector3 groundPlanePosition; // 12 bytes
-        public Vector3 groundPlaneNormal; // 12 bytes
+        public float time;
 
+        public Vector3 emitterPosition;
         public Vector3 spherePosition;
         public float sphereRadius;
     }
     
-    GameObject FindGroundPlane()
-    {
-        return GameObject.Find("Ground");
-    }
-
     void Start ()
     {
         kernel = computeShader.FindKernel("CSMain");
         
-        groundPlane = FindGroundPlane();
         collisionSphere = GameObject.Find("Sphere");
 
         // TODO: Look into SystemInfo.supportsComputeShaders check
@@ -184,6 +172,7 @@ public class GpuParticleEmitter : MonoBehaviour
     {
         FrameMetadata[] meta = new FrameMetadata[1];
         meta[0].time = Time.deltaTime;
+        meta[0].emitterPosition = transform.position;
         meta[0].spherePosition = collisionSphere.transform.position;
         meta[0].sphereRadius = collisionSphere.transform.lossyScale.x * 0.5f; // Assume all scales are equivalent...
 
