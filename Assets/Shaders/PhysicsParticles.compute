@@ -114,11 +114,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		// Age the particle towards zero
 		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - dt;
 
-		// Super simple spherical collision response with a fixed sphere
 		float3 velocity = ParticleBuffer[id.x].velocity;
 		float3 pos = ParticleBuffer[id.x].position + velocity;
-		float3 collider = float3(0.0, -5.0, 0.0);
-		float radius = 5.0;
 
 		// Initialize acceleration with gravity - if supplied
 		float3 acceleration = ConstantAcceleration;
@@ -128,8 +125,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 		float3 normal, reflection;
 
+		// Super simple spherical collision response with a sphere
 		float d = distance(pos, MetadataBuffer[0].spherePosition);
-		float rad = MetadataBuffer[0].sphereRadius;
+		float rad = MetadataBuffer[0].sphereRadius + 0.5;
 		if (d < rad) {
 			normal = normalize(MetadataBuffer[0].spherePosition - pos);
 			reflection = velocity - 2 * dot(velocity, normal) * normal;
@@ -140,6 +138,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 			acceleration = 0;
 			velocity = reflection * DampingRatio;
 			// velocity = length(velocity) / length(reflection) * reflection; // * 0.7; damping factor likes to make velocity hit zero...
+		}
+
+		// Collision response with ground plane (fixed)
+		// d = abs(dot(pos, normal));
+		if (pos.y < 0.5) {
+			reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
+			acceleration = 0;
+			velocity = reflection * DampingRatio;
 		}
 
 		ParticleBuffer[id.x].velocity = velocity + acceleration;
