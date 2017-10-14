@@ -86,9 +86,7 @@ public class GpuParticleEmitter : MonoBehaviour
     /// Spheres in the scene that act as colliders
     /// </summary>
     private List<GameObject> collisionSpheres;
-
-    // private ComputeBuffer collisionSpheresBuffer;
-
+    
     /// <summary>
     /// Ground plane for planar collisions
     /// </summary>
@@ -116,13 +114,6 @@ public class GpuParticleEmitter : MonoBehaviour
         // 56 bytes
         // ~ 53 MB at 1mil particles
     }
-
-    /*struct CollisionSphere
-    {
-        public Vector3 position; // 12 bytes
-        public float radius; // 4 bytes
-    }
-    */
     
     /// <summary>
     /// Additional non-constant metadata sent to the compute shader per draw call
@@ -136,16 +127,7 @@ public class GpuParticleEmitter : MonoBehaviour
         public Vector3 spherePosition;
         public float sphereRadius;
     }
-
-    /*
-    List<GameObject> FindCollisionSpheres()
-    {
-        // TODO: Might not work in a uasset bundle
-        return GameObject.FindGameObjectsWithTag("Collision Sphere").ToList();
-        // return Resources.FindObjectsOfTypeAll<GameObject>().Where(obj => obj.name == "Spherex").ToList();
-    }
-    */
-
+    
     GameObject FindGroundPlane()
     {
         return GameObject.Find("Ground");
@@ -156,15 +138,10 @@ public class GpuParticleEmitter : MonoBehaviour
         kernel = computeShader.FindKernel("CSMain");
         
         groundPlane = FindGroundPlane();
-        //collisionSpheres = FindCollisionSpheres();
         collisionSphere = GameObject.Find("Sphere");
 
         // TODO: Look into SystemInfo.supportsComputeShaders check
-
-        // Get all spheres in the scene we can interact with for collision responses
-        // collisionSpheres = GameObject.FindGameObjectsWithTag("Collision Sphere");
-        // groundPlane = GameObject.FindGameObjectWithTag("Ground Plane");
-
+        
         // Set constant properties of the particle system
         computeShader.SetInt("ParticleCount", particleCount);
         computeShader.SetVector("StartColor", startColor);
@@ -184,28 +161,13 @@ public class GpuParticleEmitter : MonoBehaviour
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
         // TODO: is it more efficient to use this - or to use a SetFloat/SetVector/etc each draw call?
-        // Hardcoded byte count due to array
         metadataBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(FrameMetadata)));
         computeShader.SetBuffer(kernel, "MetadataBuffer", metadataBuffer);
-
-        // collisionSpheresBuffer = new ComputeBuffer(collisionSpheres.Count, Marshal.SizeOf(typeof(CollisionSphere)));
-        // computeShader.SetBuffer(kernel, "CollisionSpheresBuffer", collisionSpheresBuffer);
-
+        
         Vector3[] vertices = new Vector3[particleCount * 3];
         vertexBuffer = new ComputeBuffer(vertices.Length, Marshal.SizeOf(typeof(Vector3)));
         vertexBuffer.SetData(vertices);
         computeShader.SetBuffer(kernel, "VertexBuffer", vertexBuffer);
-
-        // Execute with one thread per "pixel" 
-        // computeShader.Dispatch(kernel, particleCount, 1, 1); // 256 / 8, 256 / 8, 1);
-
-        // need to push that texture back into something - like another shader.
-
-        // Quick test to pull the buffer back out for analysis
-        //Particle[] output = new Particle[particleCount];
-        //particleBuffer.GetData(output);
-
-        //Debug.Log(output[55].color);
 	}
 
     /// <summary>
@@ -219,18 +181,7 @@ public class GpuParticleEmitter : MonoBehaviour
         meta[0].sphereRadius = collisionSphere.transform.lossyScale.x * 0.5f; // Assume all scales are equivalent...
 
         metadataBuffer.SetData(meta);
-
-        /*
-        CollisionSphere[] spheres = new CollisionSphere[collisionSpheres.Count];
-        for (int i = 0; i < collisionSpheres.Count; i++)
-        {
-            spheres[i].position = collisionSpheres[i].transform.position;
-            spheres[i].radius = 5.0f; // collisionSpheres[i].transform.localScale.magnitude;
-        }
-
-        collisionSpheresBuffer.SetData(spheres);
-        */
-
+        
         // Redispatch test
         computeShader.Dispatch(kernel, particleCount, 1, 1);
         

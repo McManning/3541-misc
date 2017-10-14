@@ -71,40 +71,12 @@ static const float PI = 3.14159265f;
 [numthreads(16, 1, 1)] // TODO: Better threading split 
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
-	/*
-		Some notes:
-		id is our thread index (.x/.y for a 2D set of threads). Basically
-		equivalent to a texture position if pushing a texture in
-	*/
-
-	// Result[id.xy] = Color; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
-
 	float dt = MetadataBuffer[0].time;
 
 	// Seed random generator based on thread ID/current time
 	// We need high numbers to get better random results, so 
 	// we make this as high as possible and overflow the hell out of it
 	rng_state = id.x * 100000.0 * dt;
-
-	// Starting position - a grid based on the index #
-	int width = sqrt(ParticleCount);
-	float3 position = float3(id.x % width * 0.25, id.x / width * 0.25, 0.0);
-
-	// Basic sine wave - offsetting phase by the delta time
-	//float speed = 2.0;
-	//float frequency = 0.5;
-	//float scale = 1.0;
-
-	//float v = position.x * position.x + position.y * position.y;
-	//position.z = scale * sin(t * speed + v * frequency);
-
-	// Give a random interpolated color - red for low indices, green for high
-	float red = (float)id / ParticleCount;
-	float green = 1.0 - red;
-	float blue = 0.0;
-
-	//ParticleBuffer[id.x].position = position;
-	//ParticleBuffer[id.x].color = float4(red, green, blue, 1.0);
 
 	// Set 3 vertices that represent our particle
 	// TODO: This is a waste of repeated memory. See if there's a way to optimize this away.
@@ -155,16 +127,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		CollisionSpheresBuffer.GetDimensions(count, dummy);
 
 		float3 normal, reflection;
-		/*
-		for (uint i = 0; i < count; i++) {
-			if (distance(pos, CollisionSpheresBuffer[i].position) < CollisionSpheresBuffer[i].radius) {
-				normal = normalize(CollisionSpheresBuffer[i].position - pos);
-				reflection = velocity - 2 * dot(velocity, normal) * normal;
-				acceleration = 0;
-				velocity = reflection;
-			}
-		}
-		*/
 
 		float d = distance(pos, MetadataBuffer[0].spherePosition);
 		float rad = MetadataBuffer[0].sphereRadius;
@@ -182,11 +144,11 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 		// Update velocity with acceleration and clamp to some
 		// terminal velocity so it won't go nuts
-		ParticleBuffer[id.x].velocity = clamp(
-			velocity + acceleration, 
-			0, 
-			TerminalVelocity
-		);
+		//ParticleBuffer[id.x].velocity = clamp(
+		//	velocity + acceleration, 
+		//	0, 
+		//	TerminalVelocity
+		//);
 
 		ParticleBuffer[id.x].velocity = velocity + acceleration;
 
