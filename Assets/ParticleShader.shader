@@ -2,16 +2,20 @@
 {
 	Properties 
 	{
-		[NoScaleOffset] _MainTex("Texture", 2D) = "white" {}
+		_Softness("Alpha Softness", Range (0, 1.0)) = 1.0
 	}
 	SubShader
 	{
-		Tags { "Queue" = "Transparent" "RenderType" = "Transparent" }
-		Blend SrcAlpha OneMinusSrcAlpha
+		Tags { "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
 
 		Pass
-		{
-			Cull off // Disable backface culling for particle triangles
+		{ 
+			// Disable backface culling for particle triangles
+			Cull off
+
+			// Alpha blend the particle (when appropriate)
+			ZWrite Off
+			Blend SrcAlpha OneMinusSrcAlpha
 
 			CGPROGRAM
 			#pragma vertex vert
@@ -46,7 +50,7 @@
 			StructuredBuffer<Particle> ParticleBuffer;
 			StructuredBuffer<float3> VertexBuffer;
 
-			sampler2D _MainTex;
+			float _Softness;
 
 			v2f vert (uint id : SV_VertexID)
 			{
@@ -76,17 +80,17 @@
 			
 			fixed4 frag(v2f i) : SV_Target
 			{
-				fixed4 col = tex2D(_MainTex, i.uv);
+				fixed4 col = fixed4(1, 1, 1, 1);
 				
 				// Create a circular sprite region 
 				float d = 20 * ((i.uv.x - 0.5) * (i.uv.x - 0.5) + (i.uv.y - 0.5) * (i.uv.y - 0.5));
 
+				// Pixel rejection for anything outside the sphere
 				clip(1 - d);
 				
-				// col.a = 1 - d; //  1 - d / 0.05;
-
-				col.a = 1;
-
+				// Change alpha to create soft/hard particles
+				col.a = 1 - d * _Softness;
+				
 				return col * ParticleBuffer[i.id].color;
 			}
 			ENDCG
