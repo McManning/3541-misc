@@ -2,29 +2,43 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Static metadata
-float Randomness;
-float4 Color;
+// Constant properties of the particle system
 int ParticleCount;
+float4 StartColor;
+float4 EndColor;
+float3 EmitterPosition;
+float EmitterRadius;
+float MinLife;
+float MaxLife;
+float3 ConstantAcceleration;
+float3 InitialAcceleration;
+float TerminalVelocity;
 
 // Properties of a distinct particle in the system
+// MUST match GpuParticleSystem.Particle
 struct Particle
 {
 	float3 position;
+	float3 velocity;
+	float3 acceleration;
+
 	float4 color;
+	float life;
 };
 
 // Metadata that changes per-frame
-struct ParticleSystemMetadata
+// MUST match GpuParticleSystem.FrameMetadata
+struct FrameMetadata
 {
 	float time;
 };
 
 RWStructuredBuffer<Particle> ParticleBuffer;
-StructuredBuffer<ParticleSystemMetadata> MetadataBuffer;
+RWStructuredBuffer<float3> VertexBuffer;
+StructuredBuffer<FrameMetadata> MetadataBuffer;
 
 // [numthreads(8,8,1)]
-[numthreads(16,1,1)]
+[numthreads(16,1,1)] // TODO: Better threading split 
 void CSMain (uint3 id : SV_DispatchThreadID) 
 {
 	/*
@@ -35,27 +49,35 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	// Result[id.xy] = Color; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 
-	float t = MetadataBuffer[0].time;
+	float dt = MetadataBuffer[0].time;
 
 	// Starting position - a grid based on the index #
 	int width = sqrt(ParticleCount);
 	float3 position = float3(id.x % width * 0.25, id.x / width * 0.25, 0.0);
 
 	// Basic sine wave - offsetting phase by the delta time
-	float speed = 2.0;
-	float frequency = 0.5;
-	float scale = 1.0;
+	//float speed = 2.0;
+	//float frequency = 0.5;
+	//float scale = 1.0;
 
-	float v = position.x * position.x + position.y * position.y;
-	position.z = scale * sin(t * speed + v * frequency);
+	//float v = position.x * position.x + position.y * position.y;
+	//position.z = scale * sin(t * speed + v * frequency);
 
-	ParticleBuffer[id.x].position = position;
-	
 	// Give a random interpolated color - red for low indices, green for high
 	float red = (float)id / ParticleCount;
 	float green = 1.0 - red;
 	float blue = 0.0;
 
+	ParticleBuffer[id.x].position = position;
 	ParticleBuffer[id.x].color = float4(red, green, blue, 1.0);
-}
 
+	// Set 3 vertices that represent our particle
+	//VertexBuffer[3 * id.x] = position;
+	//VertexBuffer[3 * id.x + 1] = position + float3(-0.05, -0.1, 0);
+	//VertexBuffer[3 * id.x + 2] = position + float3(0.05, -0.1, 0);
+
+	VertexBuffer[3 * id.x] = float3(0, 0.5, 0);
+	VertexBuffer[3 * id.x + 1] = float3(-0.5, -0.5, 0);
+	VertexBuffer[3 * id.x + 2] = float3(0.5, -0.5, 0);
+
+}
