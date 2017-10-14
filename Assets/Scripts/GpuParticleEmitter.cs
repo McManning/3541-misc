@@ -1,19 +1,74 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 public class GpuParticleEmitter : MonoBehaviour
 {
+    #region Configurations exposed to the Unity editor
+
+    /// <summary>
+    /// Instance of PhysicsParticle compute shader used to 
+    /// update particle locations per frame via different
+    /// affectors (vector fields, collision responses, etc)
+    /// </summary>
     public ComputeShader computeShader;
 
-    [Range(0.0f, 1.0f)]
-    public float randomness;
-    public Vector4 color;
-    public GameObject debugTarget;
-    public Material material;
-    
+    /// <summary>
+    /// Maximum number of particles to be spawned
+    /// </summary>
     public int particleCount;
 
+    /// <summary>
+    /// Starting color for a particle
+    /// </summary>
+    public Color startColor;
+
+    /// <summary>
+    /// Ending color for a particle
+    /// TODO: Different ramp options? Probably just a LERP for now
+    /// </summary>
+    public Color endColor;
+
+    /// <summary>
+    /// Emitter radius for spawning new particles
+    /// </summary>
+    public float emitterRadius;
+    
+    /// <summary>
+    /// Minimum lifetime for a particle
+    /// </summary>
+    public float minLife;
+
+    /// <summary>
+    /// Maximum lifetime for a particle
+    /// </summary>
+    public float maxLife;
+
+    /// <summary>
+    /// Initial acceleration of newly spawned particles
+    /// </summary>
+    public Vector3 initialAcceleration;
+
+    /// <summary>
+    /// Constant acceleration affector. Typically
+    /// used to apply gravitational force, but
+    /// flexible for whatever.
+    /// </summary>
+    public Vector3 constantAcceleration;
+
+    /// <summary>
+    /// Limit to how fast a particle can be accelerated
+    /// </summary>
+    public float terminalVelocity;
+
+    /// <summary>
+    /// Material with a ParticleShader used for rendering resulting particles.
+    /// TODO: Do I even need a material or can I just instantiate the shader directly?
+    /// Guess it depends on whether I want to attach textures to them or not
+    /// </summary>
+    public Material particleMaterial;
+    
     /// <summary>
     /// GPU buffer of all our distinct particles
     /// </summary>
@@ -24,18 +79,33 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     private ComputeBuffer metadataBuffer;
 
+    private ComputeBuffer vertexBuffer;
+
+    #endregion
+    
     private int kernel;
 
-    public struct Particle
+    /// <summary>
+    /// Distinct particle in the system. This data structure is pushed
+    /// to the GPU and updated each frame without returning to the CPU
+    /// </summary>
+    protected struct Particle
     {
         public Vector3 position; // 3 floats - 12 bytes
-        public Color color; // 4 floats - 16 bytes
-    }
+        public Vector3 velocity; // 3 floats - 12 bytes
+        public Vector3 acceleration; // 3 floats - 12 bytes
 
+        public Color color; // 4 floats - 16 bytes
+        public float life; // 4 bytes
+
+        // 56 bytes
+        // ~ 53 MB at 1mil particles
+    }
+    
     /// <summary>
-    /// Additional metadata sent to the compute shader per draw call
+    /// Additional non-constant metadata sent to the compute shader per draw call
     /// </summary>
-    struct ParticleSystemMetadata
+    struct FrameMetadata
     {
         public float time;
     }
@@ -43,30 +113,35 @@ public class GpuParticleEmitter : MonoBehaviour
     void Start ()
     {
         kernel = computeShader.FindKernel("CSMain");
-
-        // Look into SystemInfo.supportsComputeShaders check
-
-        // Setup a writable texture buffer for the shader to work with
-        // RenderTexture tex = new RenderTexture(256, 256, 24);
-        // tex.enableRandomWrite = true;
-        // tex.Create();
-
-        // Set shader properties 
-        // computeShader.SetTexture(kernel, "Result", tex);
-
-        computeShader.SetFloat("Randomness", randomness);
-        computeShader.SetVector("Color", color);
+    
+        // TODO: Look into SystemInfo.supportsComputeShaders check
+        
+        // Set constant properties of the particle system
         computeShader.SetInt("ParticleCount", particleCount);
-
-        //Particle[,] particles = new Particle[256, 256];
-
+        computeShader.SetVector("StartColor", startColor);
+        computeShader.SetVector("EndColor", startColor);
+        computeShader.SetVector("EmitterPosition", transform.position);
+        computeShader.SetFloat("EmitterRadius", emitterRadius);
+        computeShader.SetFloat("MinLife", minLife);
+        computeShader.SetFloat("MaxLife", maxLife);
+        computeShader.SetVector("InitialAcceleration", initialAcceleration);
+        computeShader.SetVector("ConstantAcceleration", constantAcceleration);
+        computeShader.SetFloat("TerminalVelocity", terminalVelocity);
+        
+        // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
-        particleBuffer = new ComputeBuffer(particles.Length, 28);
+        particleBuffer = new ComputeBuffer(particles.Length, Marshal.SizeOf(typeof(Particle)));
+        particleBuffer.SetData(particles);
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
         // TODO: is it more efficient to use this - or to use a SetFloat/SetVector/etc each draw call?
-        metadataBuffer = new ComputeBuffer(1, 4);
+        metadataBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(FrameMetadata)));
         computeShader.SetBuffer(kernel, "MetadataBuffer", metadataBuffer);
+
+        Vector3[] vertices = new Vector3[particleCount * 3];
+        vertexBuffer = new ComputeBuffer(vertices.Length, Marshal.SizeOf(typeof(Vector3)));
+        vertexBuffer.SetData(vertices);
+        computeShader.SetBuffer(kernel, "VertexBuffer", vertexBuffer);
 
         // Execute with one thread per "pixel" 
         // computeShader.Dispatch(kernel, particleCount, 1, 1); // 256 / 8, 256 / 8, 1);
@@ -85,13 +160,17 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     void Update()
     {
-        ParticleSystemMetadata[] meta = new ParticleSystemMetadata[1];
-        meta[0].time = Time.realtimeSinceStartup;
+        FrameMetadata[] meta = new FrameMetadata[1];
+        meta[0].time = Time.deltaTime;
 
         metadataBuffer.SetData(meta);
-        
+
         // Redispatch test
         computeShader.Dispatch(kernel, particleCount, 1, 1);
+
+        // Particle[] output = new Particle[particleCount];
+        // particleBuffer.GetData(output);
+        // Debug.Log("Sample " + output[10].position);
     }
 
     /// <summary>
@@ -101,13 +180,12 @@ public class GpuParticleEmitter : MonoBehaviour
     void OnRenderObject()
     {
         // TODO: Required to SetBuffer every draw?
-        material.SetBuffer("ParticleBuffer", particleBuffer);
-        material.SetPass(0);
-
-        // Debug.Log("Draw call " + particleCount);
+        particleMaterial.SetBuffer("ParticleBuffer", particleBuffer);
+        particleMaterial.SetBuffer("VertexBuffer", vertexBuffer);
+        particleMaterial.SetPass(0);
 
         // Run ParticleShader over the scene
-        Graphics.DrawProcedural(MeshTopology.Points, particleCount, 1);
+        Graphics.DrawProcedural(MeshTopology.Triangles, vertexBuffer.count, 1);
     }
 
     /// <summary>
@@ -117,5 +195,6 @@ public class GpuParticleEmitter : MonoBehaviour
     {
         particleBuffer.Dispose();
         metadataBuffer.Dispose();
+        vertexBuffer.Dispose();
     }
 }
