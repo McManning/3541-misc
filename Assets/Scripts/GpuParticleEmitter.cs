@@ -57,11 +57,11 @@ public class GpuParticleEmitter : MonoBehaviour
     /// flexible for whatever.
     /// </summary>
     public Vector3 constantAcceleration;
-
+    
     /// <summary>
-    /// Limit to how fast a particle can be accelerated
+    /// Damping ratio applied to elastic collisions
     /// </summary>
-    public float terminalVelocity;
+    public float dampingRatio;
 
     /// <summary>
     /// Material with a ParticleShader used for rendering resulting particles.
@@ -152,8 +152,8 @@ public class GpuParticleEmitter : MonoBehaviour
         computeShader.SetFloat("MaxLife", maxLife);
         computeShader.SetVector("InitialAcceleration", initialAcceleration);
         computeShader.SetVector("ConstantAcceleration", constantAcceleration);
-        computeShader.SetFloat("TerminalVelocity", terminalVelocity);
-        
+        computeShader.SetFloat("DampingRatio", dampingRatio);
+
         // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
         particleBuffer = new ComputeBuffer(particles.Length, Marshal.SizeOf(typeof(Particle)));

@@ -12,7 +12,6 @@ float MinLife;
 float MaxLife;
 float3 ConstantAcceleration;
 float3 InitialAcceleration;
-float TerminalVelocity;
 float DampingRatio;
 
 // Properties of a distinct particle in the system
@@ -142,14 +141,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 			velocity = reflection * DampingRatio;
 			// velocity = length(velocity) / length(reflection) * reflection; // * 0.7; damping factor likes to make velocity hit zero...
 		}
-
-		// Update velocity with acceleration and clamp to some
-		// terminal velocity so it won't go nuts
-		//ParticleBuffer[id.x].velocity = clamp(
-		//	velocity + acceleration, 
-		//	0, 
-		//	TerminalVelocity
-		//);
 
 		ParticleBuffer[id.x].velocity = velocity + acceleration;
 
