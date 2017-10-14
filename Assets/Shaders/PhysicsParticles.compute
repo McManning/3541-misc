@@ -55,6 +55,8 @@ float random()
 	return float(rng_state) * (1.0 / 4294967296.0);
 }
 
+static const float PI = 3.14159265f;
+
 // [numthreads(8,8,1)]
 [numthreads(16,1,1)] // TODO: Better threading split 
 void CSMain (uint3 id : SV_DispatchThreadID) 
@@ -102,22 +104,26 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
 	bool dead = ParticleBuffer[id.x].life < 0.001;
 
+	// TODO: Less conditional branching
 	if (dead) {
 		ParticleBuffer[id.x].life = MinLife + random() * MaxLife;
 
 		// Start at a random position in the emitter
+		float angle = 2.0 * PI * random();
+		float r = random() * EmitterRadius;
+
 		ParticleBuffer[id.x].position = float3(
 			// TODO: Randomness
-			EmitterPosition.x + id.x % width * 0.1,
+			EmitterPosition.x + cos(angle) * r,
 			EmitterPosition.y,
-			EmitterPosition.z + id.x / width * 0.1
+			EmitterPosition.z + sin(angle) * r
 		);
 
 		// Hardcode an initial velocity
 		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
 	}
 	else {
-		// Decrement life
+		// Age the particle towards zero
 		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - dt;
 
 		// Update position with velocity vector
