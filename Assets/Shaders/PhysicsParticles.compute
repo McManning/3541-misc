@@ -70,8 +70,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 	float dt = MetadataBuffer[0].time;
 
 	// Seed random generator based on thread ID/current time
-	// this is a pretty random equation in of itself
-	rng_state = id.x * id.x * dt * dt;
+	// We need high numbers to get better random results, so 
+	// we make this as high as possible and overflow the hell out of it
+	rng_state = id.x * 100000.0 * dt;
 
 	// Starting position - a grid based on the index #
 	int width = sqrt(ParticleCount);
