@@ -6,7 +6,7 @@ Material:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
-  m_Name: GpuParticle
+  m_Name: SphericalParticle
   m_Shader: {fileID: 4800000, guid: ba3dca36b8b47b24aa7b837a83ab0662, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4

@@ -45,6 +45,7 @@
 
 				float4 color;
 				float life;
+				int born;
 			};
 
 			StructuredBuffer<Particle> ParticleBuffer;
@@ -82,7 +83,12 @@
 			fixed4 frag(v2f i) : SV_Target
 			{
 				fixed4 col = fixed4(1, 1, 1, 1);
-				
+			
+				// Drop unborn particles
+				if (!ParticleBuffer[i.id].born) {
+					clip(-1);
+				}
+
 				// Create a circular sprite region 
 				float d = 20 * ((i.uv.x - 0.5) * (i.uv.x - 0.5) + (i.uv.y - 0.5) * (i.uv.y - 0.5));
 

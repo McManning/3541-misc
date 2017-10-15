@@ -31,6 +31,7 @@ struct Particle
 
 	float4 color;
 	float life;
+	int born;
 };
 
 RWStructuredBuffer<Particle> ParticleBuffer;
@@ -91,38 +92,48 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		// Age the particle towards zero
 		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
 
-		float3 velocity = ParticleBuffer[id.x].velocity;
-		float3 pos = ParticleBuffer[id.x].position + velocity;
+		// If the particle is already born, do physics calculations
+		if (ParticleBuffer[id.x].born) {
+			float3 velocity = ParticleBuffer[id.x].velocity;
+			float3 pos = ParticleBuffer[id.x].position + velocity;
 
-		// Apply gravitational acceleration - if supplied
-		float3 acceleration = ConstantAcceleration;
+			// Apply gravitational acceleration - if supplied
+			float3 acceleration = ConstantAcceleration;
 
-		float3 normal, reflection;
+			float3 normal, reflection;
 
-		// Super simple spherical collision response with a sphere
-		float d = distance(pos, SphereColliderPosition);
-		float rad = SphereColliderRadius + 0.1;
-		if (d < rad) {
-			normal = normalize(SphereColliderPosition - pos);
-			reflection = velocity - 2 * dot(velocity, normal) * normal;
+			// Super simple spherical collision response with a sphere
+			float d = distance(pos, SphereColliderPosition);
+			float rad = SphereColliderRadius + 0.1;
+			if (d < rad) {
+				normal = normalize(SphereColliderPosition - pos);
+				reflection = velocity - 2 * dot(velocity, normal) * normal;
 
-			// Kill acceleration and reflect velocity
-			acceleration = 0;
-			velocity = reflection * DampingRatio;
+				// Kill acceleration and reflect velocity
+				acceleration = 0;
+				velocity = reflection * DampingRatio;
+			}
+
+			// Collision response with ground plane (fixed)
+			// d = abs(dot(pos, normal));
+			if (pos.y < 0.1) {
+				reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
+				acceleration = 0;
+				velocity = reflection * DampingRatio;
+			}
+
+			ParticleBuffer[id.x].velocity = velocity + acceleration;
+
+			// Update position with velocity vector
+			ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
 		}
-
-		// Collision response with ground plane (fixed)
-		// d = abs(dot(pos, normal));
-		if (pos.y < 0.1) {
-			reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
-			acceleration = 0;
-			velocity = reflection * DampingRatio;
+		else {
+			// If life times out, actually become a born particle
+			if (ParticleBuffer[id.x].life < MinLife) {
+				ParticleBuffer[id.x].born = 1;
+				ParticleBuffer[id.x].life = 0;
+			}
 		}
-
-		ParticleBuffer[id.x].velocity = velocity + acceleration;
-
-		// Update position with velocity vector
-		ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
 	}
 
 	// Change opacity based on remaining life

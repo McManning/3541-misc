@@ -91,6 +91,7 @@ public class GpuParticleEmitter : MonoBehaviour
 
         public Color color; // 4 floats - 16 bytes
         public float life; // 4 bytes
+        public int born; // 2 bytes
 
         // 56 bytes
         // ~ 53 MB at 1mil particles
@@ -125,6 +126,7 @@ public class GpuParticleEmitter : MonoBehaviour
     void Start ()
     {
         // TODO: Look into SystemInfo.supportsComputeShaders check
+        int i;
 
         kernel = computeShader.FindKernel("CSMain");
         
@@ -134,13 +136,19 @@ public class GpuParticleEmitter : MonoBehaviour
 
         // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
+        //for (i = 0; i < particles.Length; i++)
+        //{
+        //    // Give a negative default life so the compute knows to stagger initial spawn
+        //    particles[i].life = -1000.0f;
+        //}
+
         particleBuffer = new ComputeBuffer(particles.Length, Marshal.SizeOf(typeof(Particle)));
         particleBuffer.SetData(particles);
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
         // Generate static buffer of triangles - one per particle
         Vector3[] vertices = new Vector3[particleCount * 3];
-        for (int i = 0; i < vertices.Length; i += 3)
+        for (i = 0; i < vertices.Length; i += 3)
         {
             vertices[i] = new Vector3(0f, 0.5f, 0f);
             vertices[i + 1] = new Vector3(-0.5f, -0.5f, 0f);
