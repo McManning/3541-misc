@@ -29,7 +29,7 @@
 				float4 vertex : SV_POSITION;
 				float2 uv : TEXCOORD0;
 
-				// Abuse TEXCOORD0 to pass our particle ID through to the fragment shader
+				// Abuse TEXCOORD1 to pass our particle ID through to the fragment shader
 				// TODO: https://msdn.microsoft.com/en-us/library/bb509647(VS.85).aspx says
 				// it should be a float - am I going to run into issues having it be an int?
 				int id : TEXCOORD1; 
@@ -63,6 +63,7 @@
 
 				// Vertex is oriented to always face the camera while using
 				// local position of the particle in the system
+				// (billboarding, basically)
 				o.vertex = float4(
 					ParticleBuffer[o.id].position +
 					right * VertexBuffer[id].x +
@@ -72,7 +73,7 @@
 
 				o.vertex = mul(UNITY_MATRIX_VP, o.vertex);
 				
-				// Shift the vertex buffer points to [0, 1] and just copy for UV. 
+				// Shift the vertex buffer points to a [0, 1] range and just copy for UV. 
 				o.uv = VertexBuffer[id].xy + 0.5;
 
 				return o;
@@ -91,6 +92,7 @@
 				// Change alpha to create soft/hard particles
 				col.a = 1 - d * _Softness;
 				
+				// Tint with whatever the particle's color is
 				return col * ParticleBuffer[i.id].color;
 			}
 			ENDCG

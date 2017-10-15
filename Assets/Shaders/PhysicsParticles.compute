@@ -8,8 +8,6 @@ float3 EmitterPosition;
 float EmitterRadius;
 
 // Particle properties
-float4 StartColor;
-float4 EndColor;
 float MinLife;
 float MaxLife;
 
@@ -65,15 +63,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	// we make this as high as possible and overflow the hell out of it
 	rng_state = id.x * 100000.0 * DeltaTime;
 
-	// Set 3 vertices that represent our particle
-	// TODO: This is a waste of repeated memory. See if there's a way to optimize this away.
-	//VertexBuffer[3 * id.x] = float3(0, 0.5, 0);
-	//VertexBuffer[3 * id.x + 1] = float3(-0.5, -0.5, 0);
-	//VertexBuffer[3 * id.x + 2] = float3(0.5, -0.5, 0);
-
 	bool dead = ParticleBuffer[id.x].life < 0.001;
 
-	// TODO: Less conditional branching
 	if (dead) {
 		ParticleBuffer[id.x].life = MinLife + random() * MaxLife;
 
@@ -96,15 +87,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 			saturate(random() + 0.25), 
 			1.0
 		);
-	}
-	else {
+	} else {
 		// Age the particle towards zero
 		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
 
 		float3 velocity = ParticleBuffer[id.x].velocity;
 		float3 pos = ParticleBuffer[id.x].position + velocity;
 
-		// Initialize acceleration with gravity - if supplied
+		// Apply gravitational acceleration - if supplied
 		float3 acceleration = ConstantAcceleration;
 
 		float3 normal, reflection;
@@ -116,12 +106,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 			normal = normalize(SphereColliderPosition - pos);
 			reflection = velocity - 2 * dot(velocity, normal) * normal;
 
-			// TODO: Damping multiplier?
-
 			// Kill acceleration and reflect velocity
 			acceleration = 0;
 			velocity = reflection * DampingRatio;
-			// velocity = length(velocity) / length(reflection) * reflection; // * 0.7; damping factor likes to make velocity hit zero...
 		}
 
 		// Collision response with ground plane (fixed)

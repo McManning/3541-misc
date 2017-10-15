@@ -19,18 +19,7 @@ public class GpuParticleEmitter : MonoBehaviour
     /// Maximum number of particles to be spawned
     /// </summary>
     public int particleCount;
-
-    /// <summary>
-    /// Starting color for a particle
-    /// </summary>
-    public Color startColor;
-
-    /// <summary>
-    /// Ending color for a particle
-    /// TODO: Different ramp options? Probably just a LERP for now
-    /// </summary>
-    public Color endColor;
-
+    
     /// <summary>
     /// Emitter radius for spawning new particles
     /// </summary>
@@ -64,12 +53,12 @@ public class GpuParticleEmitter : MonoBehaviour
     public float dampingRatio;
 
     /// <summary>
-    /// Material with a ParticleShader used for rendering resulting particles.
-    /// TODO: Do I even need a material or can I just instantiate the shader directly?
-    /// Guess it depends on whether I want to attach textures to them or not
+    /// Material with a ParticleShader used for rendering resulting particles
     /// </summary>
     public Material particleMaterial;
-    
+
+    #endregion
+
     /// <summary>
     /// GPU buffer of all our distinct particles
     /// </summary>
@@ -79,15 +68,11 @@ public class GpuParticleEmitter : MonoBehaviour
     /// GPU buffer of vertex data (constant)
     /// </summary>
     private ComputeBuffer vertexBuffer;
-
-    /// <summary>
-    /// Spheres in the scene that act as colliders
-    /// </summary>
-    private List<GameObject> collisionSpheres;
     
+    /// <summary>
+    /// Sphere for demoing collision responses
+    /// </summary>
     private GameObject collisionSphere;
-
-    #endregion
     
     /// <summary>
     /// Compute shader kernel to execute each update
@@ -111,6 +96,10 @@ public class GpuParticleEmitter : MonoBehaviour
         // ~ 53 MB at 1mil particles
     }
     
+    /// <summary>
+    /// Update compute shader's global settings based on current 
+    /// configurations and state of relevant game objects
+    /// </summary>
     private void UpdateComputeShaderSettings()
     {
         // Emitter properties
@@ -119,8 +108,6 @@ public class GpuParticleEmitter : MonoBehaviour
         computeShader.SetFloat("EmitterRadius", emitterRadius);
 
         // Particle properties
-        computeShader.SetVector("StartColor", startColor);
-        computeShader.SetVector("EndColor", startColor);
         computeShader.SetFloat("MinLife", minLife);
         computeShader.SetFloat("MaxLife", maxLife);
 
