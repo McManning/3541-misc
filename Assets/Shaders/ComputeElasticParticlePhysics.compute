@@ -121,11 +121,11 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 				acceleration = 0;
 				velocity = reflection * DampingRatio;
 			}
-
+			
 			ParticleBuffer[id.x].velocity = velocity + acceleration;
 
 			// Update position with velocity vector
-			ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity;
+			ParticleBuffer[id.x].position += ParticleBuffer[id.x].velocity * DeltaTime;
 		}
 		else {
 			// If life times out, actually become a born particle
