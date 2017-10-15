@@ -4,7 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
-public class GpuParticleEmitter : MonoBehaviour
+public class ElasticParticleEmitter : MonoBehaviour
 {
     #region Configurations exposed to the Unity editor
 
