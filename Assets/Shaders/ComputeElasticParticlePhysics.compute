@@ -79,8 +79,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 			EmitterPosition.z + sin(angle) * r
 		);
 
-		// Initial velocity is some random factor of our initial acceleration setting
-		ParticleBuffer[id.x].velocity = InitialAcceleration * random();
+		// Set initial velocity based on our initial acceleration
+		ParticleBuffer[id.x].velocity = InitialAcceleration;
 
 		ParticleBuffer[id.x].color = float4(
 			saturate(random() + 0.25), 
