@@ -321,7 +321,7 @@ GameObject:
   - component: {fileID: 1202758990}
   - component: {fileID: 1202758989}
   m_Layer: 0
-  m_Name: Particle Emitter
+  m_Name: Elastic Particle Emitter
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -343,8 +343,8 @@ MonoBehaviour:
   emitterRadius: 5
   minLife: 2
   maxLife: 10
-  initialAcceleration: {x: 0, y: 0.02, z: 0}
-  constantAcceleration: {x: 0, y: -0.001, z: 0}
+  initialAcceleration: {x: 0, y: 0, z: 0}
+  constantAcceleration: {x: 0, y: -0.1, z: 0}
   dampingRatio: 0.5
   particleMaterial: {fileID: 2100000, guid: 3c9bd4f4046d1714b99bffd75ea62453, type: 2}
   usePointParticles: 0
