@@ -347,6 +347,7 @@ MonoBehaviour:
   constantAcceleration: {x: 0, y: -0.001, z: 0}
   dampingRatio: 0.5
   particleMaterial: {fileID: 2100000, guid: 3c9bd4f4046d1714b99bffd75ea62453, type: 2}
+  usePointParticles: 0
 --- !u!4 &1202758990
 Transform:
   m_ObjectHideFlags: 0

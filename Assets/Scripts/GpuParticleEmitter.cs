@@ -57,6 +57,12 @@ public class GpuParticleEmitter : MonoBehaviour
     /// </summary>
     public Material particleMaterial;
 
+    /// <summary>
+    /// Whether the shader should use point particle rendering. This changes
+    /// how data is pipelined into the shader, and cannot be changed at runtime
+    /// </summary>
+    public bool usePointParticles;
+
     #endregion
 
     /// <summary>
@@ -182,12 +188,20 @@ public class GpuParticleEmitter : MonoBehaviour
     void OnRenderObject()
     {
         // TODO: Required to SetBuffer every draw?
-        particleMaterial.SetBuffer("ParticleBuffer", particleBuffer);
-        particleMaterial.SetBuffer("VertexBuffer", vertexBuffer);
         particleMaterial.SetPass(0);
+        particleMaterial.SetBuffer("ParticleBuffer", particleBuffer);
 
-        // Run ParticleShader over the scene
-        Graphics.DrawProcedural(MeshTopology.Triangles, vertexBuffer.count, 1);
+        // Run either a billboard shader using our vertex buffer 
+        // of triangles or a point shader - for a point per particle
+        if (!usePointParticles)
+        {
+            particleMaterial.SetBuffer("VertexBuffer", vertexBuffer);
+            Graphics.DrawProcedural(MeshTopology.Triangles, vertexBuffer.count, 1);
+        }
+        else
+        {
+            Graphics.DrawProcedural(MeshTopology.Points, particleBuffer.count, 1);
+        }
     }
 
     /// <summary>
