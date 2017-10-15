@@ -95,10 +95,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 		// If the particle is already born, do physics calculations
 		if (ParticleBuffer[id.x].born) {
 			float3 velocity = ParticleBuffer[id.x].velocity;
-			float3 pos = ParticleBuffer[id.x].position + velocity;
 
 			// Apply gravitational acceleration - if supplied
 			float3 acceleration = ConstantAcceleration;
+
+			// Predicted position next step before collision responses
+			float3 pos = ParticleBuffer[id.x].position + (velocity + acceleration) * DeltaTime;
 
 			float3 normal, reflection;
 
