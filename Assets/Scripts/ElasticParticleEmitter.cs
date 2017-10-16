@@ -63,6 +63,31 @@ public class ElasticParticleEmitter : MonoBehaviour
     /// </summary>
     public bool usePointParticles;
 
+    /// <summary>
+    /// Sphere for demoing collision responses
+    /// </summary>
+    public GameObject collisionSphere;
+
+    /// <summary>
+    /// Object used as an attractor target
+    /// </summary>
+    public GameObject attractor;
+
+    /// <summary>
+    /// Factor applied to acceleration toward attractor
+    /// </summary>
+    public float attractionAcceleration;
+
+    /// <summary>
+    /// Acceleration applied towards curling
+    /// </summary>
+    public float curlAcceleration;
+
+    /// <summary>
+    /// Scaling factor applied to perlin noise generation
+    /// </summary>
+    public float noiseScale;
+
     #endregion
 
     /// <summary>
@@ -74,11 +99,6 @@ public class ElasticParticleEmitter : MonoBehaviour
     /// GPU buffer of vertex data (constant)
     /// </summary>
     private ComputeBuffer vertexBuffer;
-    
-    /// <summary>
-    /// Sphere for demoing collision responses
-    /// </summary>
-    private GameObject collisionSphere;
     
     /// <summary>
     /// Compute shader kernel to execute each update
@@ -120,13 +140,30 @@ public class ElasticParticleEmitter : MonoBehaviour
 
         // Physics simulation
         computeShader.SetFloat("DeltaTime", Time.deltaTime);
+        computeShader.SetFloat("Time", Time.realtimeSinceStartup);
+
+        // Relevant to the elastic particle system
         computeShader.SetVector("InitialAcceleration", initialAcceleration);
         computeShader.SetVector("ConstantAcceleration", constantAcceleration);
         computeShader.SetFloat("DampingRatio", dampingRatio);
 
-        // Colliders
-        computeShader.SetVector("SphereColliderPosition", collisionSphere.transform.position);
-        computeShader.SetFloat("SphereColliderRadius", collisionSphere.transform.lossyScale.x * 0.5f);
+        // Relevant to the curl noise particle system
+        computeShader.SetFloat("CurlAcceleration", curlAcceleration);
+        computeShader.SetFloat("NoiseScale", noiseScale);
+
+        // Spherical collider
+        if (collisionSphere)
+        {
+            computeShader.SetVector("SphereColliderPosition", collisionSphere.transform.position);
+            computeShader.SetFloat("SphereColliderRadius", collisionSphere.transform.lossyScale.x * 0.5f);
+        }
+
+        // Affector
+        if (attractor)
+        {
+            computeShader.SetVector("AttractorPosition", attractor.transform.position);
+            computeShader.SetFloat("AttractionAcceleration", attractionAcceleration);
+        }
     }
 
     void Start ()
@@ -135,34 +172,31 @@ public class ElasticParticleEmitter : MonoBehaviour
 
         kernel = computeShader.FindKernel("CSMain");
         
-        collisionSphere = GameObject.Find("Sphere");
-
         UpdateComputeShaderSettings();
 
         // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
-        //for (i = 0; i < particles.Length; i++)
-        //{
-        //    // Give a negative default life so the compute knows to stagger initial spawn
-        //    particles[i].life = -1000.0f;
-        //}
-
         particleBuffer = new ComputeBuffer(particles.Length, Marshal.SizeOf(typeof(Particle)));
         particleBuffer.SetData(particles);
         computeShader.SetBuffer(kernel, "ParticleBuffer", particleBuffer);
 
         // Generate static buffer of triangles - one per particle
-        Vector3[] vertices = new Vector3[particleCount * 3];
-        for (int i = 0; i < vertices.Length; i += 3)
+        // TODO: Just let the vertex shader calculate these? It might be 
+        // faster than the setup time if we have N-million vertices to setup
+        if (!usePointParticles)
         {
-            vertices[i] = new Vector3(0f, 0.5f, 0f);
-            vertices[i + 1] = new Vector3(-0.5f, -0.5f, 0f);
-            vertices[i + 2] = new Vector3(0.5f, -0.5f, 0f);
-        }
+            Vector3[] vertices = new Vector3[particleCount * 3];
+            for (int i = 0; i < vertices.Length; i += 3)
+            {
+                vertices[i] = new Vector3(0f, 0.5f, 0f);
+                vertices[i + 1] = new Vector3(-0.5f, -0.5f, 0f);
+                vertices[i + 2] = new Vector3(0.5f, -0.5f, 0f);
+            }
 
-        vertexBuffer = new ComputeBuffer(vertices.Length, Marshal.SizeOf(typeof(Vector3)));
-        vertexBuffer.SetData(vertices);
-        computeShader.SetBuffer(kernel, "VertexBuffer", vertexBuffer);
+            vertexBuffer = new ComputeBuffer(vertices.Length, Marshal.SizeOf(typeof(Vector3)));
+            vertexBuffer.SetData(vertices);
+            computeShader.SetBuffer(kernel, "VertexBuffer", vertexBuffer);
+        }
 	}
 
     /// <summary>
@@ -209,6 +243,10 @@ public class ElasticParticleEmitter : MonoBehaviour
     void OnDestroy()
     {
         particleBuffer.Dispose();
-        vertexBuffer.Dispose();
+
+        if (vertexBuffer != null)
+        {
+            vertexBuffer.Dispose();
+        }
     }
 }
