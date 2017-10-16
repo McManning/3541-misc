@@ -16,13 +16,22 @@ float MaxLife;
 
 // Physics simulation
 float DeltaTime;
+float Time;
+
 float3 ConstantAcceleration;
 float3 InitialAcceleration;
 float DampingRatio;
 
-// Colliders
+float CurlAcceleration;
+float NoiseScale;
+
+// Collider
 float3 SphereColliderPosition;
 float SphereColliderRadius;
+
+// Attractor
+float3 AttractorPosition;
+float AttractionAcceleration;
 
 // Properties of a distinct particle in the system
 // MUST match GpuParticleSystem.Particle
@@ -54,12 +63,11 @@ static const float PI = 3.14159265f;
 */
 
 /**
- * Compute the curl for a vector position using a fixed time
+ * Compute the curl for a vector position for some time t
  */
-float3 Curl(float3 v)
+float3 Curl(float3 v, float t)
 {
 	float epsilon = 1.0; // Small change for derivation estimate
-	float nf = 0.2; // Noise scale
 	float n1, n2, a, b;
 	float3 curl = float3(0.0, 0.0, 0.0);
 
@@ -67,34 +75,34 @@ float3 Curl(float3 v)
 	// https://petewerner.blogspot.com/2015/02/intro-to-curl-noise.html
 
 	// Compute delta x = dz/dy - dy/dz
-	n1 = snoise(float4(v.x, v.y + epsilon, v.z, 1.0) * nf);
-	n2 = snoise(float4(v.x, v.y - epsilon, v.z, 1.0) * nf);
+	n1 = snoise(float4(v.x, v.y + epsilon, v.z, t) * NoiseScale);
+	n2 = snoise(float4(v.x, v.y - epsilon, v.z, t) * NoiseScale);
 	a = (n1 - n2) / (2 * epsilon);
 	
-	n1 = snoise(float4(v.x, v.y, v.z + epsilon, 1.0) * nf);
-	n2 = snoise(float4(v.x, v.y, v.z - epsilon, 1.0) * nf);
+	n1 = snoise(float4(v.x, v.y, v.z + epsilon, t) * NoiseScale);
+	n2 = snoise(float4(v.x, v.y, v.z - epsilon, t) * NoiseScale);
 	b = (n1 - n2) / (2 * epsilon);
 
 	curl.x = a - b;
 
 	// delta y = dx/dz - dz/dx
-	n1 = snoise(float4(v.x, v.y, v.z + epsilon, 1.0) * nf);
-	n2 = snoise(float4(v.x, v.y, v.z - epsilon, 1.0) * nf);
+	n1 = snoise(float4(v.x, v.y, v.z + epsilon, t) * NoiseScale);
+	n2 = snoise(float4(v.x, v.y, v.z - epsilon, t) * NoiseScale);
 	a = (n1 - n2) / (2 * epsilon);
 
-	n1 = snoise(float4(v.x + epsilon, v.y, v.z, 1.0) * nf);
-	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * nf);
+	n1 = snoise(float4(v.x + epsilon, v.y, v.z, t) * NoiseScale);
+	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * NoiseScale);
 	b = (n1 - n2) / (2 * epsilon);
 
 	curl.y = a - b;
 
 	// delta z = dy/dx - dx/dy
-	n1 = snoise(float4(v.x + epsilon, v.y, v.z, 1.0) * nf);
-	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * nf);
+	n1 = snoise(float4(v.x + epsilon, v.y, v.z, t) * NoiseScale);
+	n2 = snoise(float4(v.x - epsilon, v.y, v.z, t) * NoiseScale);
 	a = (n1 - n2) / (2 * epsilon);
 
-	n1 = snoise(float4(v.x, v.y + epsilon, v.z, 1.0) * nf);
-	n2 = snoise(float4(v.x, v.y - epsilon, v.z, 1.0) * nf);
+	n1 = snoise(float4(v.x, v.y + epsilon, v.z, t) * NoiseScale);
+	n2 = snoise(float4(v.x, v.y - epsilon, v.z, t) * NoiseScale);
 	b = (n1 - n2) / (2 * epsilon);
 
 	curl.z = a - b;
@@ -120,13 +128,6 @@ void ResetParticle(inout Particle particle)
 	);
 
 	particle.velocity = float3(0.0, 0.0, 0.0);
-
-	particle.color = float4(
-		saturate(random() + 0.25),
-		saturate(random() + 0.25),
-		saturate(random() + 0.25),
-		1.0
-	);
 }
 
 /**
@@ -135,19 +136,21 @@ void ResetParticle(inout Particle particle)
 void ApplyPhysics(inout Particle particle)
 {
 	// Get the curl of the vector field at the current position
-	float3 curl = normalize(Curl(particle.position));
+	float3 curl = Curl(particle.position, Time);
 	
 	// Get an attractor vector toward our sphere collider
-	float3 attraction = normalize(SphereColliderPosition - particle.position);
+	float3 attraction = normalize(AttractorPosition - particle.position);
 
-	// Apply gravity - if relevant
-	float3 acceleration = ConstantAcceleration;
+	// Apply gravity, attraction, and curl accelerants
+	float3 acceleration = ConstantAcceleration 
+		+ attraction * AttractionAcceleration 
+		+ curl * CurlAcceleration;
 
-	// Update velocity
-	float3 velocity = attraction * 2 + curl * DampingRatio; // temp reuse
+	// Update velocity to *exactly* the above acceleration
+	particle.velocity = acceleration;
 
 	// Apply to particle position
-	particle.position += velocity * DeltaTime;
+	particle.position += particle.velocity * DeltaTime;
 }
 
 /**
@@ -164,14 +167,14 @@ void ApplyStateChange(inout Particle particle)
 
 	// particle.color = float4(normalize(particle.velocity), 1.0);
 
-	// 2 color blend and a fade out 
-	float x = (1 - particle.life / MaxLife) * 2;
+	// 3 color blend and a fade
+	float x = (1 - particle.life / MinLife) * 2;
 
-	float4 start = float4(1, 0, 0, 1);
-	float4 mid = float4(0, 1, 0, 1);
-	float4 end = float4(0, 0, 1, 0);
+	float4 start = float4(1, 0.81, 0.06, 1);
+	float4 mid = float4(0.90, 0.12, 0.08, 1);
+	float4 end = float4(0, 0, 0, 0);
 
-	particle.color = start * clamp(1 - x, 0, 1)
+	particle.color = start * clamp(1 - x, 0, 1) 
 		+ mid * clamp(min(2 - x, x), 0, 1)
 		+ end * clamp(min(3 - x, x - 1), 0, 1);
 }
