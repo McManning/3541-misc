@@ -207,7 +207,7 @@ MeshRenderer:
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
   m_Materials:
-  - {fileID: 2100000, guid: 9afa15cea8d4bc74d9ef3478a4c0d18b, type: 2}
+  - {fileID: 2100000, guid: a4bf0f834a24d6743bff80683a2a07b0, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -274,7 +274,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   computeShader: {fileID: 7200000, guid: 8b25b81a8145857468caa4b44907494c, type: 3}
-  particleCount: 500000
+  particleCount: 200000
   emitterRadius: 7
   minLife: 4
   maxLife: 7
