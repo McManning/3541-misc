@@ -124,7 +124,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!23 &214430967
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -172,7 +172,7 @@ Transform:
   m_GameObject: {fileID: 214430966}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 6, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 7, y: 7, z: 7}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 4
@@ -193,7 +193,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!23 &612564521
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -276,13 +276,18 @@ MonoBehaviour:
   computeShader: {fileID: 7200000, guid: 8b25b81a8145857468caa4b44907494c, type: 3}
   particleCount: 500000
   emitterRadius: 7
-  minLife: 1
-  maxLife: 10
+  minLife: 4
+  maxLife: 7
   initialAcceleration: {x: 0, y: 0, z: 0}
   constantAcceleration: {x: 0, y: -0.1, z: 0}
-  dampingRatio: 35
+  dampingRatio: 0
   particleMaterial: {fileID: 2100000, guid: 3a833adb597868149afbb1a5404a1e67, type: 2}
   usePointParticles: 1
+  collisionSphere: {fileID: 0}
+  attractor: {fileID: 1096819855}
+  attractionAcceleration: 2
+  curlAcceleration: 3
+  noiseScale: 0.2
 --- !u!4 &661305302
 Transform:
   m_ObjectHideFlags: 0
@@ -372,7 +377,7 @@ GameObject:
   - component: {fileID: 1096819857}
   - component: {fileID: 1096819856}
   m_Layer: 0
-  m_Name: Sphere
+  m_Name: Attractor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -467,6 +472,11 @@ MonoBehaviour:
   dampingRatio: 0.5
   particleMaterial: {fileID: 2100000, guid: 3c9bd4f4046d1714b99bffd75ea62453, type: 2}
   usePointParticles: 0
+  collisionSphere: {fileID: 214430966}
+  attractor: {fileID: 0}
+  attractionAcceleration: 0
+  curlAcceleration: 0
+  noiseScale: 0
 --- !u!4 &1202758990
 Transform:
   m_ObjectHideFlags: 0
