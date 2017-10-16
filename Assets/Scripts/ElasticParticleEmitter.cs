@@ -132,7 +132,6 @@ public class ElasticParticleEmitter : MonoBehaviour
     void Start ()
     {
         // TODO: Look into SystemInfo.supportsComputeShaders check
-        int i;
 
         kernel = computeShader.FindKernel("CSMain");
         
@@ -154,7 +153,7 @@ public class ElasticParticleEmitter : MonoBehaviour
 
         // Generate static buffer of triangles - one per particle
         Vector3[] vertices = new Vector3[particleCount * 3];
-        for (i = 0; i < vertices.Length; i += 3)
+        for (int i = 0; i < vertices.Length; i += 3)
         {
             vertices[i] = new Vector3(0f, 0.5f, 0f);
             vertices[i + 1] = new Vector3(-0.5f, -0.5f, 0f);
@@ -207,7 +206,7 @@ public class ElasticParticleEmitter : MonoBehaviour
     /// <summary>
     /// Cleanup lingering compute buffer from the GPU
     /// </summary>
-    void OnDisable()
+    void OnDestroy()
     {
         particleBuffer.Dispose();
         vertexBuffer.Dispose();
