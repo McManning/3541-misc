@@ -276,8 +276,8 @@ MonoBehaviour:
   computeShader: {fileID: 7200000, guid: 8b25b81a8145857468caa4b44907494c, type: 3}
   particleCount: 200000
   emitterRadius: 7
-  minLife: 4
-  maxLife: 7
+  minLife: 3
+  maxLife: 4
   initialAcceleration: {x: 0, y: 0, z: 0}
   constantAcceleration: {x: 0, y: -0.1, z: 0}
   dampingRatio: 0
@@ -285,9 +285,12 @@ MonoBehaviour:
   usePointParticles: 1
   collisionSphere: {fileID: 0}
   attractor: {fileID: 1096819855}
-  attractionAcceleration: 2
-  curlAcceleration: 3
+  attractionAcceleration: 3
+  curlAcceleration: 4
   noiseScale: 0.2
+  startColor: {r: 0.49803925, g: 0.5254902, b: 1, a: 1}
+  endColor: {r: 1, g: 0.53333336, b: 0.1764706, a: 1}
+  colorBias: 0.5
 --- !u!4 &661305302
 Transform:
   m_ObjectHideFlags: 0
@@ -477,6 +480,9 @@ MonoBehaviour:
   attractionAcceleration: 0
   curlAcceleration: 0
   noiseScale: 0
+  startColor: {r: 0, g: 0, b: 0, a: 0}
+  endColor: {r: 0, g: 0, b: 0, a: 0}
+  colorBias: 0
 --- !u!4 &1202758990
 Transform:
   m_ObjectHideFlags: 0

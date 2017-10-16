@@ -87,6 +87,23 @@ public class GpuParticleEmitter : MonoBehaviour
     /// Scaling factor applied to perlin noise generation
     /// </summary>
     public float noiseScale;
+    
+    /// <summary>
+    /// Start color of particles in the system.
+    /// Only matters for the curl noise system
+    /// </summary>
+    public Color startColor;
+
+    /// <summary>
+    /// Ending color of particles in the system.
+    /// Only matters for the curl noise system
+    /// </summary>
+    public Color endColor;
+
+    /// <summary>
+    /// Bias of EndColor over StartColor. 1 indicates 50/50
+    /// </summary>
+    public float colorBias;
 
     #endregion
 
@@ -150,6 +167,9 @@ public class GpuParticleEmitter : MonoBehaviour
         // Relevant to the curl noise particle system
         computeShader.SetFloat("CurlAcceleration", curlAcceleration);
         computeShader.SetFloat("NoiseScale", noiseScale);
+        computeShader.SetVector("StartColor", startColor);
+        computeShader.SetVector("EndColor", endColor);
+        computeShader.SetFloat("ColorBias", colorBias);
 
         // Spherical collider
         if (collisionSphere)

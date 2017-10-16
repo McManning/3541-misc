@@ -14,6 +14,10 @@ float EmitterRadius;
 float MinLife;
 float MaxLife;
 
+float4 StartColor;
+float4 EndColor;
+float ColorBias;
+
 // Physics simulation
 float DeltaTime;
 float Time;
@@ -167,16 +171,10 @@ void ApplyStateChange(inout Particle particle)
 
 	// particle.color = float4(normalize(particle.velocity), 1.0);
 
-	// 3 color blend and a fade
-	float x = (1 - particle.life / MinLife) * 2;
+	float x = (1 - particle.life / MinLife * ColorBias);
 
-	float4 start = float4(0.509, 0.522, 1.0, 1.0);
-	float4 mid = float4(1.0, 0.537, 0.18, 1.0);
-	float4 end = float4(0, 0, 0, 0);
-
-	particle.color = start * clamp(1 - x, 0, 1) 
-		+ mid * clamp(min(2 - x, x), 0, 1)
-		+ end * clamp(min(3 - x, x - 1), 0, 1);
+	particle.color = StartColor * clamp(1 - x, 0, 1)
+		+ EndColor * clamp(min(2 - x, x), 0, 1);
 }
 
 // [numthreads(8,8,1)]
