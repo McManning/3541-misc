@@ -3,6 +3,7 @@
 	SubShader
 	{
 		// Tags{ "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
+		Blend OneMinusDstColor One
 
 		Pass
 		{
