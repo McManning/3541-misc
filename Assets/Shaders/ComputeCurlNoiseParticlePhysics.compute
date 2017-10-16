@@ -1,0 +1,235 @@
+﻿
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#include "Random.cginc"
+#include "Noise4D.cginc"
+
+// Emitter properites
+int ParticleCount;
+float3 EmitterPosition;
+float EmitterRadius;
+
+// Particle properties
+float MinLife;
+float MaxLife;
+
+// Physics simulation
+float DeltaTime;
+float3 ConstantAcceleration;
+float3 InitialAcceleration;
+float DampingRatio;
+
+// Colliders
+float3 SphereColliderPosition;
+float SphereColliderRadius;
+
+// Properties of a distinct particle in the system
+// MUST match GpuParticleSystem.Particle
+struct Particle
+{
+	float3 position;
+	float3 velocity;
+	float3 acceleration;
+
+	float4 color;
+	float life;
+	int born;
+};
+
+RWStructuredBuffer<Particle> ParticleBuffer;
+StructuredBuffer<float3> VertexBuffer;
+
+static const float PI = 3.14159265f;
+
+/*
+	tl;dr:
+
+	potential vector field psi
+	
+	for each particle position
+		velocity = curl of the potential vector field at it's position
+		probably also normalized and given some fixed factor
+
+*/
+
+/**
+ * Compute the curl for a vector position using a fixed time
+ */
+float3 Curl(float3 v)
+{
+	float epsilon = 1.0; // Small change for derivation estimate
+	float nf = 0.2; // Noise scale
+	float n1, n2, a, b;
+	float3 curl = float3(0.0, 0.0, 0.0);
+
+	// Example of how to compute derivatives via
+	// https://petewerner.blogspot.com/2015/02/intro-to-curl-noise.html
+
+	// Compute delta x = dz/dy - dy/dz
+	n1 = snoise(float4(v.x, v.y + epsilon, v.z, 1.0) * nf);
+	n2 = snoise(float4(v.x, v.y - epsilon, v.z, 1.0) * nf);
+	a = (n1 - n2) / (2 * epsilon);
+	
+	n1 = snoise(float4(v.x, v.y, v.z + epsilon, 1.0) * nf);
+	n2 = snoise(float4(v.x, v.y, v.z - epsilon, 1.0) * nf);
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.x = a - b;
+
+	// delta y = dx/dz - dz/dx
+	n1 = snoise(float4(v.x, v.y, v.z + epsilon, 1.0) * nf);
+	n2 = snoise(float4(v.x, v.y, v.z - epsilon, 1.0) * nf);
+	a = (n1 - n2) / (2 * epsilon);
+
+	n1 = snoise(float4(v.x + epsilon, v.y, v.z, 1.0) * nf);
+	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * nf);
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.y = a - b;
+
+	// delta z = dy/dx - dx/dy
+	n1 = snoise(float4(v.x + epsilon, v.y, v.z, 1.0) * nf);
+	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * nf);
+	a = (n1 - n2) / (2 * epsilon);
+
+	n1 = snoise(float4(v.x, v.y + epsilon, v.z, 1.0) * nf);
+	n2 = snoise(float4(v.x, v.y - epsilon, v.z, 1.0) * nf);
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.z = a - b;
+
+	return curl;
+}
+
+/**
+* Reset a particle to an initial state at the emitter
+*/
+void ResetParticle(inout Particle particle)
+{
+	particle.life = MinLife + random() * MaxLife;
+
+	// Start at a random position in the emitter
+	float angle = 2.0 * PI * random();
+	float r = random() * EmitterRadius;
+
+	particle.position = float3(
+		EmitterPosition.x + cos(angle) * r,
+		EmitterPosition.y,
+		EmitterPosition.z + sin(angle) * r
+	);
+
+	particle.velocity = float3(0.0, 0.0, 0.0);
+
+	particle.color = float4(
+		saturate(random() + 0.25),
+		saturate(random() + 0.25),
+		saturate(random() + 0.25),
+		1.0
+	);
+}
+
+/**
+* Update position/velocity based on gravity and collisions with other objects
+*/
+void ApplyPhysics(inout Particle particle)
+{
+	// Get the curl of the vector field at the current position
+	float3 curl = normalize(Curl(particle.position));
+	
+	// Get an attractor vector toward our sphere collider
+	float3 attraction = normalize(SphereColliderPosition - particle.position);
+
+	// Apply gravity - if relevant
+	float3 acceleration = ConstantAcceleration;
+
+	// Update velocity
+	float3 velocity = attraction * 2 + curl * DampingRatio; // temp reuse
+
+	// Apply to particle position
+	particle.position += velocity * DeltaTime;
+}
+
+/**
+* Apply changes to the particle state that are independent from position
+* (such as color, opacity, etc)
+*/
+void ApplyStateChange(inout Particle particle)
+{
+	// Change opacity based on remaining life
+	// particle.color.a = saturate(particle.life / MinLife);
+
+	// float a = snoise(float4(particle.position * 0.02, particle.life));
+	// particle.color = float4(a, a, a, 1.0);
+
+	// particle.color = float4(normalize(particle.velocity), 1.0);
+
+	// 2 color blend and a fade out 
+	float x = (1 - particle.life / MaxLife) * 2;
+
+	float4 start = float4(1, 0, 0, 1);
+	float4 mid = float4(0, 1, 0, 1);
+	float4 end = float4(0, 0, 1, 0);
+
+	particle.color = start * clamp(1 - x, 0, 1)
+		+ mid * clamp(min(2 - x, x), 0, 1)
+		+ end * clamp(min(3 - x, x - 1), 0, 1);
+}
+
+// [numthreads(8,8,1)]
+[numthreads(16, 1, 1)] // TODO: Better threading split 
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+	// Seed random generator based on thread ID/current time
+	// We need high numbers to get better random results, so 
+	// we make this as high as possible and overflow the hell out of it
+	rng_state = id.x * 100000.0 * DeltaTime;
+
+	bool dead = ParticleBuffer[id.x].life < 0.001;
+
+	if (dead) {
+		ResetParticle(ParticleBuffer[id.x]);
+		// ParticleBuffer[id.x].life = 0.0;
+
+		// Spawn instantly. Required by the fragment shader
+		// ParticleBuffer[id.x].born = 1;
+
+		// 3D initial position
+		// int size = pow(abs(ParticleCount), 1.0 / 3.0);
+		//float3 position = float3(
+		//	id.x / (size * size),
+		//	(id.x / size) % size,
+		//	id.x % size
+		//	);
+
+		// size = sqrt(ParticleCount);
+		// position = float3(id.x % size * 0.5, id.x / size * 0.5, 0.0);
+
+		//float a = snoise(float4(position * 0.02, 1.0));
+
+		// Test perlin noise by z-offsetting each particle
+		// position.z = a * 5.0;
+
+		//ParticleBuffer[id.x].position = position;
+		//ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
+	}
+	else {
+		// Age the particle towards MaxLife
+		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
+
+		// If the particle is already born, do physics calculations
+		if (ParticleBuffer[id.x].born) {
+			ApplyPhysics(ParticleBuffer[id.x]);
+		}
+		else {
+			// If life times out, actually become a born particle.
+			// This lets us stagger initial spawning of particles
+			if (ParticleBuffer[id.x].life < MinLife) {
+				ParticleBuffer[id.x].born = 1;
+				ParticleBuffer[id.x].life = 0;
+			}
+		}
+	}
+
+	ApplyStateChange(ParticleBuffer[id.x]);
+}
