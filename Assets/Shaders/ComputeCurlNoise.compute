@@ -1,4 +1,16 @@
 ﻿
+/* 
+	Compute shader that moves particles towards some attractor
+	that also applies a curl function to their velocities to
+	simulate fluid dynamics. 
+
+	Particles will also avoid a collider (sphere) by using
+	a (semi unconventional?) tangental rotation around the sphere.
+	It may not be physically accurate - but it looks pretty neat. 
+
+	@author Chase McManning
+*/
+
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
@@ -54,17 +66,6 @@ RWStructuredBuffer<Particle> ParticleBuffer;
 StructuredBuffer<float3> VertexBuffer;
 
 static const float PI = 3.14159265f;
-
-/*
-	tl;dr:
-
-	potential vector field psi
-	
-	for each particle position
-		velocity = curl of the potential vector field at it's position
-		probably also normalized and given some fixed factor
-
-*/
 
 /**
  * Compute the curl for a vector position for some time t
@@ -178,6 +179,7 @@ void ApplyStateChange(inout Particle particle)
 
 	// particle.color = float4(normalize(particle.velocity), 1.0);
 
+	// Gradient between two colors - based on the life of the particle
 	float x = (1 - particle.life / MinLife * ColorBias);
 
 	particle.color = StartColor * clamp(1 - x, 0, 1)
@@ -197,29 +199,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
 	if (dead) {
 		ResetParticle(ParticleBuffer[id.x]);
-		// ParticleBuffer[id.x].life = 0.0;
-
-		// Spawn instantly. Required by the fragment shader
-		// ParticleBuffer[id.x].born = 1;
-
-		// 3D initial position
-		// int size = pow(abs(ParticleCount), 1.0 / 3.0);
-		//float3 position = float3(
-		//	id.x / (size * size),
-		//	(id.x / size) % size,
-		//	id.x % size
-		//	);
-
-		// size = sqrt(ParticleCount);
-		// position = float3(id.x % size * 0.5, id.x / size * 0.5, 0.0);
-
-		//float a = snoise(float4(position * 0.02, 1.0));
-
-		// Test perlin noise by z-offsetting each particle
-		// position.z = a * 5.0;
-
-		//ParticleBuffer[id.x].position = position;
-		//ParticleBuffer[id.x].color = float4(a, a, a, 1.0);
 	}
 	else {
 		// Age the particle towards MaxLife

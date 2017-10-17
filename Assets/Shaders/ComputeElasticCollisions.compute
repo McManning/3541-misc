@@ -1,4 +1,15 @@
 ﻿
+/*
+	Compute shader that applies gravity and collision reactions
+	to particles in the system. This implements two colliders:
+		- a spherical collider that can be moved around dynamically
+		- a fixed plane collider (ground)
+
+	This calculates collision responses, but does not factor in mass/friction.
+
+	@author Chase McManning
+*/
+
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
@@ -61,12 +72,13 @@ void ResetParticle(inout Particle particle)
 	// Set initial velocity based on our initial acceleration
 	particle.velocity = InitialAcceleration;
 
+	// Give each particle a random color
 	particle.color = float4(
 		saturate(random() + 0.25),
 		saturate(random() + 0.25),
 		saturate(random() + 0.25),
 		1.0
-		);
+	);
 }
 
 /**
@@ -97,7 +109,6 @@ void ApplyPhysics(inout Particle particle)
 	}
 
 	// Collision response with ground plane (fixed)
-	// d = abs(dot(pos, normal));
 	if (pos.y < 0.1) {
 		reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
 		acceleration = 0;

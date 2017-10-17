@@ -14,7 +14,6 @@
 			Cull off
 
 			// Alpha blend the particle (when appropriate)
-			// ZWrite Off
 			Blend SrcAlpha OneMinusSrcAlpha
 
 			CGPROGRAM

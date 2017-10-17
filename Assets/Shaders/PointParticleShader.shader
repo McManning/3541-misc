@@ -3,6 +3,8 @@
 	SubShader
 	{
 		// Tags{ "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
+
+		// Additive blend point particles together so clusters are highlighted
 		Blend OneMinusDstColor One
 
 		Pass
