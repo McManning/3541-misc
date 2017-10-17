@@ -1,0 +1,288 @@
+﻿
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#include "Random.cginc"
+#include "Noise4D.cginc"
+
+// Emitter properites
+int ParticleCount;
+float3 EmitterPosition;
+float EmitterRadius;
+
+// Particle properties
+float MinLife;
+float MaxLife;
+
+float4 StartColor;
+float4 EndColor;
+float ColorBias;
+
+// Physics simulation
+float DeltaTime;
+float Time;
+
+float3 ConstantAcceleration;
+float3 InitialAcceleration;
+float DampingRatio;
+
+float CurlAcceleration;
+float NoiseScale;
+
+// Collider
+float3 SphereColliderPosition;
+float SphereColliderRadius;
+
+// Attractor
+float3 AttractorPosition;
+float AttractionAcceleration;
+
+// Properties of a distinct particle in the system
+// MUST match GpuParticleSystem.Particle
+struct Particle
+{
+	float3 position;
+	float3 velocity;
+	float3 acceleration;
+
+	float4 color;
+	float life;
+	int born;
+};
+
+RWStructuredBuffer<Particle> ParticleBuffer;
+StructuredBuffer<float3> VertexBuffer;
+
+static const float PI = 3.14159265f;
+
+/**
+* Everything that factors into acceleration:
+* - Vector towards the Attractor's location
+* - Vector towards gravitational pull
+* - Vector away from collider
+*		Note that I'm ignoring this one as it should
+*		already be part of the constrained potential equation
+*/
+float3 Acceleration(float3 v)
+{
+	// Accelerate due to gravity (or whatever we call the constant accelerant)
+	float3 a = ConstantAcceleration;
+
+	// Accelerate toward attractor
+	a += normalize(v - AttractorPosition) * AttractionAcceleration;
+
+	return a;
+}
+
+/**
+* Example ramp function from Bridson
+*/
+float Ramp(float r)
+{
+	if (r >= 1) {
+		return 1;
+	}
+
+	if (r <= -1) {
+		return 1;
+	}
+
+	return 15.0 / 8.8 * r - 10.0 / 8.0 * pow(abs(r), 3) + 3.0 / 8.0 * pow(abs(r), 5);
+}
+
+float3 Potential(float3 v, float t)
+{
+	float strength = DampingRatio; // strength of noise over our attractor/gravity field
+	float speed = CurlAcceleration;
+
+	// N(x/L) where L is our NoiseScale
+	// in our case - noise is varying over time t
+	// We need 3 different random noise results to properly generate a 3D potential,
+	// otherwise we end up with a 2D plane of noise. To do this, we just use a 
+	// random offset of the 4D simplex noise and call it "different"
+	float n1 = snoise(float4(v * NoiseScale, t)); // or float4(v, t) * NoiseScale
+	float n2 = snoise(float4((v.xyz + 5.0) * NoiseScale, t));
+	float n3 = snoise(float4((v.xyz - 5.0) * NoiseScale, t));
+
+	float3 potential = strength * speed * float3(n1, n2, n3);
+
+	return potential;
+
+	// Modulate the potential toward some goal (in our case, the attractor
+	// plus any other constant accelerants like gravity)
+	float3 acceleration = Acceleration(v);
+
+	// We need a vector that points in the accelerator direction but with 
+	// the same strength of our current potential to override it. Otherwise,
+	// it won't really go anywhere
+	acceleration = dot(acceleration, potential) * acceleration;
+
+	float3 directional = cross(potential - acceleration, acceleration);
+
+	// Strength balance is also applied to let one overtake the other, potentially
+	potential *= (1 - strength) * speed * directional;
+
+	return potential;
+
+	float3 d = v - SphereColliderPosition;
+	float d0 = NoiseScale; // Same value as the noise length scale
+
+	float alpha = abs(Ramp(length(d) / d0));
+	float3 norm = normalize(d);
+
+	float3 constrainedPotential = alpha * potential + (1 - alpha) * norm * dot(norm, potential);
+}
+
+/**
+ * Compute the curl for a vector position for some time t
+ */
+float3 Curl(float3 v, float t)
+{
+	float epsilon = 0.0001; // Small change for derivation estimate
+	float n1, n2, a, b;
+	float3 curl = float3(0.0, 0.0, 0.0);
+
+	// Example of how to compute derivatives via
+	// https://petewerner.blogspot.com/2015/02/intro-to-curl-noise.html
+
+	// Potential of the position vector
+	float3 p = Potential(v, t);
+
+	// Curl = (delta_x, delta_y, delta_z)
+
+	// Compute delta x = dz/dy - dy/dz
+	n1 = p.z - Potential(float3(v.x, v.y + epsilon, v.z), t).z;
+	n2 = p.z - Potential(float3(v.x, v.y - epsilon, v.z), t).z;
+	a = (n1 - n2) / (2 * epsilon);
+
+	n1 = p.y - Potential(float3(v.x, v.y, v.z + epsilon), t).y;
+	n2 = p.y - Potential(float3(v.x, v.y, v.z - epsilon), t).y;
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.x = a - b;
+
+	// delta y = dx/dz - dz/dx
+	n1 = p.x - Potential(float3(v.x, v.y, v.z + epsilon), t).x;
+	n2 = p.x - Potential(float3(v.x, v.y, v.z - epsilon), t).x;
+	a = (n1 - n2) / (2 * epsilon);
+
+	n1 = p.z - Potential(float3(v.x + epsilon, v.y, v.z), t).z;
+	n2 = p.z - Potential(float3(v.x - epsilon, v.y, v.z), t).z;
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.y = a - b;
+
+	// delta z = dy/dx - dx/dy
+	n1 = p.y - Potential(float3(v.x + epsilon, v.y, v.z), t).y;
+	n2 = p.y - Potential(float3(v.x - epsilon, v.y, v.z), t).y;
+	a = (n1 - n2) / (2 * epsilon);
+
+	n1 = p.x - Potential(float3(v.x, v.y + epsilon, v.z), t).x;
+	n2 = p.x - Potential(float3(v.x, v.y - epsilon, v.z), t).x;
+	b = (n1 - n2) / (2 * epsilon);
+
+	curl.z = a - b;
+
+	return curl;
+}
+
+/**
+* Reset a particle to an initial state at the emitter
+*/
+void ResetParticle(inout Particle particle)
+{
+	particle.life = MinLife + random() * MaxLife;
+
+	// Start at a random position in the emitter
+	float angle = 2.0 * PI * random();
+	float r = random() * EmitterRadius;
+
+	particle.position = float3(
+		EmitterPosition.x + cos(angle) * r,
+		EmitterPosition.y,
+		EmitterPosition.z + sin(angle) * r
+		);
+
+	particle.velocity = float3(0.0, 0.0, 0.0);
+}
+
+/**
+* Update position/velocity based on gravity and collisions with other objects
+*/
+void ApplyPhysics(inout Particle particle)
+{
+	// particle.velocity = Curl(Acceleration() * Potential(particle.position, 1.0));
+	// float3 curl = Curl(particle.position, 1.0);
+	// particle.velocity = curl;
+
+	float3 acceleration = ConstantAcceleration;
+
+	acceleration += normalize(AttractorPosition - particle.position) * AttractionAcceleration;
+
+	float3 newPosition = particle.position + acceleration * DeltaTime;
+
+	float3 curl = Curl(newPosition, 1.0) * CurlAcceleration;
+
+	if (distance(newPosition, SphereColliderPosition) < SphereColliderRadius)
+	{
+		float3 n = normalize(particle.position - SphereColliderPosition);
+		acceleration = cross(acceleration, n);
+	}
+
+	particle.velocity = acceleration;
+
+	// Apply to particle position
+	particle.position += particle.velocity * DeltaTime;
+}
+
+/**
+* Apply changes to the particle state that are independent from position
+* (such as color, opacity, etc)
+*/
+void ApplyStateChange(inout Particle particle)
+{
+	// Change opacity based on remaining life
+	// particle.color.a = saturate(particle.life / MinLife);
+
+	// float a = snoise(float4(particle.position * 0.02, particle.life));
+	// particle.color = float4(a, a, a, 1.0);
+
+	// particle.color = float4(normalize(particle.velocity), 1.0);
+
+	float x = (1 - particle.life / MinLife * ColorBias);
+
+	particle.color = StartColor * clamp(1 - x, 0, 1)
+		+ EndColor * clamp(min(2 - x, x), 0, 1);
+}
+
+// [numthreads(8,8,1)]
+[numthreads(16, 1, 1)] // TODO: Better threading split 
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+	rng_state = id.x * 100000.0 * DeltaTime;
+
+	bool dead = ParticleBuffer[id.x].life < 0.001;
+
+	if (dead) {
+		ResetParticle(ParticleBuffer[id.x]);
+	}
+	else {
+		// Age the particle towards MaxLife
+		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
+
+		// If the particle is already born, do physics calculations
+		if (ParticleBuffer[id.x].born) {
+			ApplyPhysics(ParticleBuffer[id.x]);
+		}
+		else {
+			// If life times out, actually become a born particle.
+			// This lets us stagger initial spawning of particles
+			if (ParticleBuffer[id.x].life < MinLife) {
+				ParticleBuffer[id.x].born = 1;
+				ParticleBuffer[id.x].life = 0;
+			}
+		}
+	}
+
+	ApplyStateChange(ParticleBuffer[id.x]);
+}

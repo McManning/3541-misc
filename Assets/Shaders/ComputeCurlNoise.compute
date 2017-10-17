@@ -71,7 +71,7 @@ static const float PI = 3.14159265f;
  */
 float3 Curl(float3 v, float t)
 {
-	float epsilon = 1.0; // Small change for derivation estimate
+	float epsilon = 0.0001; // Small change for derivation estimate
 	float n1, n2, a, b;
 	float3 curl = float3(0.0, 0.0, 0.0);
 
@@ -95,7 +95,7 @@ float3 Curl(float3 v, float t)
 	a = (n1 - n2) / (2 * epsilon);
 
 	n1 = snoise(float4(v.x + epsilon, v.y, v.z, t) * NoiseScale);
-	n2 = snoise(float4(v.x - epsilon, v.y, v.z, 1.0) * NoiseScale);
+	n2 = snoise(float4(v.x - epsilon, v.y, v.z, t) * NoiseScale);
 	b = (n1 - n2) / (2 * epsilon);
 
 	curl.y = a - b;
@@ -139,16 +139,23 @@ void ResetParticle(inout Particle particle)
 */
 void ApplyPhysics(inout Particle particle)
 {
-	// Get the curl of the vector field at the current position
-	float3 curl = Curl(particle.position, Time);
-	
 	// Get an attractor vector toward our sphere collider
 	float3 attraction = normalize(AttractorPosition - particle.position);
 
 	// Apply gravity, attraction, and curl accelerants
 	float3 acceleration = ConstantAcceleration 
-		+ attraction * AttractionAcceleration 
-		+ curl * CurlAcceleration;
+		+ attraction * AttractionAcceleration;
+
+	float3 newPosition = particle.position + acceleration * DeltaTime;
+
+	// Get the curl of the vector field at the predicted position
+	acceleration += Curl(newPosition, Time) * CurlAcceleration;
+
+	if (distance(particle.position + acceleration * DeltaTime, SphereColliderPosition) < SphereColliderRadius)
+	{
+		float3 n = normalize(particle.position - SphereColliderPosition);
+		acceleration = cross(acceleration, n);
+	}
 
 	// Update velocity to *exactly* the above acceleration
 	particle.velocity = acceleration;
