@@ -87,50 +87,52 @@ float Ramp(float r)
 		return 1;
 	}
 
-	return 15.0 / 8.8 * r - 10.0 / 8.0 * pow(abs(r), 3) + 3.0 / 8.0 * pow(abs(r), 5);
+	return 15.0 / 8.0 * r - 10.0 / 8.0 * r * r * r + 3.0 / 8.0 * r * r * r * r * r;
 }
 
 float3 Potential(float3 v, float t)
 {
 	float strength = DampingRatio; // strength of noise over our attractor/gravity field
-	float speed = CurlAcceleration;
 
 	// N(x/L) where L is our NoiseScale
 	// in our case - noise is varying over time t
 	// We need 3 different random noise results to properly generate a 3D potential,
 	// otherwise we end up with a 2D plane of noise. To do this, we just use a 
 	// random offset of the 4D simplex noise and call it "different"
-	float n1 = snoise(float4(v * NoiseScale, t)); // or float4(v, t) * NoiseScale
-	float n2 = snoise(float4((v.xyz + 5.0) * NoiseScale, t));
-	float n3 = snoise(float4((v.xyz - 5.0) * NoiseScale, t));
+	float n1 = snoise(float4(v, t) * NoiseScale);
+	float n2 = snoise(float4(v.x, v.y + 40.0, v.z, t) * NoiseScale);
+	float n3 = snoise(float4(v.x, v.y, v.z + 40.0, t) * NoiseScale);
 
-	float3 potential = strength * speed * float3(n1, n2, n3);
-
-	return potential;
+	// float3 potential = strength * speed * float3(n1, n2, n3);
+	float3 potential = 0.5 * 0.3 * (1 - float3(n1, n2, n3) * 2.0);
 
 	// Modulate the potential toward some goal (in our case, the attractor
 	// plus any other constant accelerants like gravity)
-	float3 acceleration = Acceleration(v);
+	//float3 acceleration = ConstantAcceleration; //  normalize(AttractorPosition - v);
 
 	// We need a vector that points in the accelerator direction but with 
 	// the same strength of our current potential to override it. Otherwise,
 	// it won't really go anywhere
-	acceleration = dot(acceleration, potential) * acceleration;
+	// acceleration = dot(acceleration, potential) * acceleration;
 
-	float3 directional = cross(potential - acceleration, acceleration);
+	float3 dir = float3(0, 1.0, 0);
+	float3 parallel = dot(dir, v) * dir;
+	float3 ortho = v - parallel;
+	float3 directional = cross(ortho, dir);
 
 	// Strength balance is also applied to let one overtake the other, potentially
-	potential *= (1 - strength) * speed * directional;
+	potential += (1 - strength) * directional;
 
-	return potential;
-
-	float3 d = v - SphereColliderPosition;
+	// Distance to the edge of the collider sphere
+	float d = distance(v, SphereColliderPosition) - SphereColliderRadius;
 	float d0 = NoiseScale; // Same value as the noise length scale
 
-	float alpha = abs(Ramp(length(d) / d0));
-	float3 norm = normalize(d);
+	float alpha = abs(Ramp(d / d0));
+	float3 n = normalize(v - SphereColliderPosition);
 
-	float3 constrainedPotential = alpha * potential + (1 - alpha) * norm * dot(norm, potential);
+	potential = (alpha)* potential + (1 - (alpha)) * n * dot(n, potential);
+
+	return potential;
 }
 
 /**
@@ -142,44 +144,41 @@ float3 Curl(float3 v, float t)
 	float n1, n2, a, b;
 	float3 curl = float3(0.0, 0.0, 0.0);
 
-	// Example of how to compute derivatives via
-	// https://petewerner.blogspot.com/2015/02/intro-to-curl-noise.html
-
 	// Potential of the position vector
 	float3 p = Potential(v, t);
 
 	// Curl = (delta_x, delta_y, delta_z)
 
 	// Compute delta x = dz/dy - dy/dz
-	n1 = p.z - Potential(float3(v.x, v.y + epsilon, v.z), t).z;
-	n2 = p.z - Potential(float3(v.x, v.y - epsilon, v.z), t).z;
-	a = (n1 - n2) / (2 * epsilon);
+	n1 = (p.z - Potential(float3(v.x, v.y + epsilon, v.z), t)).z;
+	n2 = (p.z - Potential(float3(v.x, v.y - epsilon, v.z), t)).z;
+	a = n1 / epsilon;
 
-	n1 = p.y - Potential(float3(v.x, v.y, v.z + epsilon), t).y;
-	n2 = p.y - Potential(float3(v.x, v.y, v.z - epsilon), t).y;
-	b = (n1 - n2) / (2 * epsilon);
+	n1 = (p.y - Potential(float3(v.x, v.y, v.z + epsilon), t)).y;
+	n2 = (p.y - Potential(float3(v.x, v.y, v.z - epsilon), t)).y;
+	b = n1 / epsilon;
 
 	curl.x = a - b;
 
 	// delta y = dx/dz - dz/dx
-	n1 = p.x - Potential(float3(v.x, v.y, v.z + epsilon), t).x;
-	n2 = p.x - Potential(float3(v.x, v.y, v.z - epsilon), t).x;
-	a = (n1 - n2) / (2 * epsilon);
+	n1 = (p.x - Potential(float3(v.x, v.y, v.z + epsilon), t)).x;
+	n2 = (p.x - Potential(float3(v.x, v.y, v.z - epsilon), t)).x;
+	a = n1 / epsilon;
 
-	n1 = p.z - Potential(float3(v.x + epsilon, v.y, v.z), t).z;
-	n2 = p.z - Potential(float3(v.x - epsilon, v.y, v.z), t).z;
-	b = (n1 - n2) / (2 * epsilon);
+	n1 = (p.z - Potential(float3(v.x + epsilon, v.y, v.z), t)).z;
+	n2 = (p.z - Potential(float3(v.x - epsilon, v.y, v.z), t)).z;
+	b = n1 / epsilon;
 
 	curl.y = a - b;
 
 	// delta z = dy/dx - dx/dy
-	n1 = p.y - Potential(float3(v.x + epsilon, v.y, v.z), t).y;
-	n2 = p.y - Potential(float3(v.x - epsilon, v.y, v.z), t).y;
-	a = (n1 - n2) / (2 * epsilon);
+	n1 = (p.y - Potential(float3(v.x + epsilon, v.y, v.z), t)).y;
+	n2 = (p.y - Potential(float3(v.x - epsilon, v.y, v.z), t)).y;
+	a = n1 / epsilon;
 
-	n1 = p.x - Potential(float3(v.x, v.y + epsilon, v.z), t).x;
-	n2 = p.x - Potential(float3(v.x, v.y - epsilon, v.z), t).x;
-	b = (n1 - n2) / (2 * epsilon);
+	n1 = (p.x - Potential(float3(v.x, v.y + epsilon, v.z), t)).x;
+	n2 = (p.x - Potential(float3(v.x, v.y - epsilon, v.z), t)).x;
+	b = n1 / epsilon;
 
 	curl.z = a - b;
 
@@ -214,22 +213,31 @@ void ApplyPhysics(inout Particle particle)
 	// particle.velocity = Curl(Acceleration() * Potential(particle.position, 1.0));
 	// float3 curl = Curl(particle.position, 1.0);
 	// particle.velocity = curl;
+	// Get an attractor vector toward our sphere collider
 
-	float3 acceleration = ConstantAcceleration;
+	float3 attraction = normalize(AttractorPosition - particle.position);
 
-	acceleration += normalize(AttractorPosition - particle.position) * AttractionAcceleration;
+	// Apply gravity, attraction, and curl accelerants
+	float3 acceleration = ConstantAcceleration
+		+ attraction * AttractionAcceleration;
 
 	float3 newPosition = particle.position + acceleration * DeltaTime;
 
-	float3 curl = Curl(newPosition, 1.0) * CurlAcceleration;
+	// Get the curl of the vector field at the predicted position
+	acceleration += Curl(newPosition, Time) * CurlAcceleration;
 
-	if (distance(newPosition, SphereColliderPosition) < SphereColliderRadius)
+	if (distance(particle.position + acceleration * DeltaTime, SphereColliderPosition) < SphereColliderRadius)
 	{
 		float3 n = normalize(particle.position - SphereColliderPosition);
 		acceleration = cross(acceleration, n);
 	}
 
+	// Update velocity to *exactly* the above acceleration
 	particle.velocity = acceleration;
+
+	// Ackshully
+	float3 curl = Curl(particle.position, Time);
+	particle.velocity = curl;
 
 	// Apply to particle position
 	particle.position += particle.velocity * DeltaTime;
@@ -253,6 +261,8 @@ void ApplyStateChange(inout Particle particle)
 
 	particle.color = StartColor * clamp(1 - x, 0, 1)
 		+ EndColor * clamp(min(2 - x, x), 0, 1);
+
+	particle.color.xyz = 1 - Curl(particle.position, Time);
 }
 
 // [numthreads(8,8,1)]
