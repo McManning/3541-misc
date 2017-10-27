@@ -45,11 +45,11 @@ public class SchoolingBehavior : StateMachineBehaviour {
         
         // Debug lines
 
-        alignmentDebug.rotation = alignment.magnitude > 0 ? Quaternion.LookRotation(alignment) : alignmentDebug.rotation;
-        cohesionDebug.rotation = cohesion.magnitude > 0 ? Quaternion.LookRotation(cohesion) : cohesionDebug.rotation;
-        separationDebug.rotation = separation.magnitude > 0 ? Quaternion.LookRotation(separation) : separationDebug.rotation;
-        goalDebug.rotation = goal.magnitude > 0 ? Quaternion.LookRotation(goal) : goalDebug.rotation;
-        avoidanceDebug.rotation = avoidance.magnitude > 0 ? Quaternion.LookRotation(avoidance) : avoidanceDebug.rotation;
+        alignmentDebug.rotation = alignment.magnitude > 0.01f ? Quaternion.LookRotation(alignment) : alignmentDebug.rotation;
+        cohesionDebug.rotation = cohesion.magnitude > 0.01f ? Quaternion.LookRotation(cohesion) : cohesionDebug.rotation;
+        separationDebug.rotation = separation.magnitude > 0.01f ? Quaternion.LookRotation(separation) : separationDebug.rotation;
+        goalDebug.rotation = goal.magnitude > 0.01f ? Quaternion.LookRotation(goal) : goalDebug.rotation;
+        avoidanceDebug.rotation = avoidance.magnitude > 0.01f ? Quaternion.LookRotation(avoidance) : avoidanceDebug.rotation;
 
         /*
         alignmentDebug.localScale = new Vector3(0, 0, 1.0f + alignment.magnitude);
@@ -63,7 +63,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
 
         agent.velocity += acceleration;
         agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.maxAcceleration);
-        agent.velocity.y = 0;
+        // agent.velocity.y = 0;
 
         agent.transform.position += agent.velocity * Time.deltaTime;
 
