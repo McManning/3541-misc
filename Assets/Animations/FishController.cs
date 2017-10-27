@@ -11,22 +11,25 @@ public class FishController : MonoBehaviour {
 
     // Flocking behavior weights
 
-    public float speed;
+    public float maxVelocity;
 
     //[Range(0, 10.0f)]
-    public float alignmentWeight;
+    public float alignmentForce;
+    public float alignmentDistance;
 
     //[Range(0, 10.0f)]
-    public float cohesionWeight;
+    public float cohesionForce;
+    public float cohesionDistance;
 
     //[Range(0, 10.0f)]
-    public float separationWeight;
+    public float separationForce;
+    public float separationDistance;
 
     //[Range(0, 10.0f)]
-    public float goalWeight;
+    public float goalForce;
 
     //[Range(0, 10.0f)]
-    public float avoidanceWeight;
+    public float avoidanceForce;
 
     // private Animator animator;
 

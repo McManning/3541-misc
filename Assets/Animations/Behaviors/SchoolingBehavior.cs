@@ -8,30 +8,70 @@ public class SchoolingBehavior : StateMachineBehaviour {
     private GameObject bounds;
     private FishController[] school;
 
-	 // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
-	override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
+    private Transform separationDebug;
+    private Transform alignmentDebug;
+    private Transform cohesionDebug;
+    private Transform goalDebug;
+    private Transform avoidanceDebug;
+
+    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
+    override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
         agent = animator.GetComponentInParent<FishController>();
         school = FindObjectsOfType<FishController>();
-        goal = GameObject.Find("Goal");
+        goal = GameObject.Find("Fishbait");
         bounds = GameObject.Find("Bounds");
+
+        separationDebug = agent.transform.Find("Separation");
+        alignmentDebug = agent.transform.Find("Alignment");
+        cohesionDebug = agent.transform.Find("Cohesion");
+        goalDebug = agent.transform.Find("Goal");
+        avoidanceDebug = agent.transform.Find("Avoidance");
+
+        // Give it a random velocity
+        //Vector2 rand = Random.insideUnitCircle.normalized; // * 50.0f;
+        //agent.velocity.x = rand.x;
+        //agent.velocity.z = rand.y;
     }
 
     // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        // Update velocity based on the flocking ruleset
-        Vector3 acceleration = CalculateAlignment().normalized * agent.alignmentWeight
-            + CalculateCohesion().normalized * agent.cohesionWeight
-            + CalculateSeparation().normalized * agent.separationWeight
-            + CalculateGoal().normalized * agent.goalWeight
-            + CalculateAvoidance().normalized * agent.avoidanceWeight;
+        Vector3 alignment = CalculateAlignment() * agent.alignmentForce;
+        Vector3 cohesion = CalculateCohesion() * agent.cohesionForce;
+        Vector3 separation = CalculateSeparation() * agent.separationForce;
+        Vector3 goal = CalculateGoal() * agent.goalForce;
+        Vector3 avoidance = CalculateAvoidance() * agent.avoidanceForce;
+        
+        // Debug lines
 
-        agent.velocity = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
+        alignmentDebug.rotation = alignment.magnitude > 0 ? Quaternion.LookRotation(alignment) : alignmentDebug.rotation;
+        cohesionDebug.rotation = cohesion.magnitude > 0 ? Quaternion.LookRotation(cohesion) : cohesionDebug.rotation;
+        separationDebug.rotation = separation.magnitude > 0 ? Quaternion.LookRotation(separation) : separationDebug.rotation;
+        goalDebug.rotation = goal.magnitude > 0 ? Quaternion.LookRotation(goal) : goalDebug.rotation;
+        avoidanceDebug.rotation = avoidance.magnitude > 0 ? Quaternion.LookRotation(avoidance) : avoidanceDebug.rotation;
+
+        /*
+        alignmentDebug.localScale = new Vector3(0, 0, 1.0f + alignment.magnitude);
+        cohesionDebug.localScale = new Vector3(0, 0, 1.0f + cohesion.magnitude);
+        separationDebug.localScale = new Vector3(0, 0, 1.0f + separation.magnitude);
+        goalDebug.localScale = new Vector3(0, 0, 1.0f + goal.magnitude);
+        */
+
+        // Update velocity based on the flocking ruleset
+        Vector3 acceleration = alignment + cohesion + separation + goal + avoidance;
+
+        agent.velocity += acceleration;
+        agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.maxAcceleration);
         agent.velocity.y = 0;
 
-        agent.transform.Translate(agent.velocity * Time.deltaTime);
+        agent.transform.position += agent.velocity * Time.deltaTime;
 
+        if (agent.velocity.magnitude > 0)
+        {
+            // agent.transform.rotation = Quaternion.LookRotation(agent.velocity);
+        }
+        
         // TODO: If any predators intersect our FOV, run. FOV could be a trigger, but I might have
         // to have a separate thing set a flag. 
         // animator.SetTrigger("Flee");
@@ -43,7 +83,13 @@ public class SchoolingBehavior : StateMachineBehaviour {
     /// <returns></returns>
     private Vector3 CalculateGoal()
     {
-        return Vector3.Normalize(goal.transform.position - agent.transform.position);
+        Vector3 acceleration = Vector3.zero;
+
+        acceleration = goal.transform.position - agent.transform.position;
+        acceleration.Normalize();
+        acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
+
+        return acceleration;
     }
 
     /// <summary>
@@ -52,21 +98,24 @@ public class SchoolingBehavior : StateMachineBehaviour {
     /// <returns></returns>
     private Vector3 CalculateAlignment()
     {
-        Vector3 velocity = Vector3.zero;
+        Vector3 acceleration = Vector3.zero;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents())
+        foreach (var other in GetNearbyAgents(agent.alignmentDistance))
         {
-            velocity += other.velocity;
+            acceleration += other.velocity;
             neighbors++;
         }
 
         if (neighbors > 0)
         {
-            velocity = velocity / neighbors;
+            acceleration /= neighbors;
+            acceleration.Normalize();
+            acceleration -= agent.velocity;
+            acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
         }
 
-        return velocity;
+        return acceleration;
     }
 
     /// <summary>
@@ -75,21 +124,25 @@ public class SchoolingBehavior : StateMachineBehaviour {
     /// <returns></returns>
     private Vector3 CalculateCohesion()
     {
-        Vector3 velocity = Vector3.zero;
+        Vector3 acceleration = Vector3.zero;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents())
+        foreach (var other in GetNearbyAgents(agent.cohesionDistance))
         {
-            velocity += other.transform.position;
+            acceleration += other.transform.position;
             neighbors++;
         }
 
         if (neighbors > 0)
         {
-            velocity = velocity / neighbors - agent.transform.position;
+            acceleration /= neighbors;
+            acceleration -= agent.transform.position;
+            acceleration.Normalize();
+            acceleration -= agent.velocity;
+            acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
         }
 
-        return velocity;
+        return acceleration;
     }
 
     /// <summary>
@@ -98,24 +151,30 @@ public class SchoolingBehavior : StateMachineBehaviour {
     /// <returns></returns>
     private Vector3 CalculateSeparation()
     {
-        Vector3 velocity = Vector3.zero;
+        Vector3 acceleration = Vector3.zero;
+        Vector3 force;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents())
+        foreach (var other in GetNearbyAgents(agent.separationDistance))
         {
-            if (Vector3.Distance(other.transform.position, agent.transform.position) < agent.avoidDistance)
-            {
-                velocity += other.transform.position - agent.transform.position;
-                neighbors++;
-            }
+            force = other.transform.position - agent.transform.position;
+            force.Normalize();
+            force /= Vector3.Distance(other.transform.position, agent.transform.position);
+
+            acceleration += force;
+            neighbors++;
         }
 
         if (neighbors > 0)
         {
-            velocity = -velocity / neighbors;
+            acceleration /= neighbors;
+            acceleration.Normalize();
+            acceleration -= agent.velocity;
+            acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
         }
 
-        return velocity;
+        // Repulsive force, negative final result
+        return acceleration * -1;
     }
 
     /// <summary>
@@ -128,39 +187,51 @@ public class SchoolingBehavior : StateMachineBehaviour {
         float maxX = bounds.transform.localScale.x * 0.5f;
         float minZ = bounds.transform.localScale.z * -0.5f;
         float maxZ = bounds.transform.localScale.z * 0.5f;
-        Vector3 velocity = Vector3.zero;
+        Vector3 acceleration = Vector3.zero;
         
         if (agent.transform.position.x < minX)
         {
-            velocity.x = 100;
+            acceleration.x = 1;
         }
         else if (agent.transform.position.x > maxX)
         {
-            velocity.x = -100;
+            acceleration.x = -1;
         }
 
         if (agent.transform.position.z < minZ)
         {
-            velocity.z = 100;
+            acceleration.z = 1;
         }
         else if (agent.transform.position.z > maxZ)
         {
-            velocity.z = -100;
+            acceleration.z = -1;
+        }
+        
+        if (acceleration.magnitude > 0)
+        {
+            // acceleration -= agent.velocity;
+            acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
         }
 
-        return velocity;
+        return acceleration;
     }
 
     /// <summary>
     /// Get all other agents (fish) that are near my agent
     /// </summary>
     /// <returns></returns>
-    private IEnumerable<FishController> GetNearbyAgents()
+    private IEnumerable<FishController> GetNearbyAgents(float distance)
     {
+        float angle;
+
         foreach (var fish in school)
         {
-            if (fish != agent && Vector3.Distance(fish.transform.position, agent.transform.position) < agent.fov)
-            {
+            angle = Vector3.Angle(fish.transform.position - agent.transform.position, agent.transform.forward);
+
+            if (Vector3.Distance(fish.transform.position, agent.transform.position) < distance
+                && fish != agent
+                && Mathf.Abs(angle) < agent.fov * 0.5f
+            ) {
                 yield return fish;
             }
         }
