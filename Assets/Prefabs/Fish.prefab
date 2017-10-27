@@ -362,9 +362,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c39e11f5bca9604fbedce6ff1223449, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  velocity: {x: 0, y: 0, z: 0}
   fov: 300
-  avoidDistance: 10
   maxAcceleration: 2
   maxVelocity: 2
   alignmentForce: 1
@@ -375,6 +373,9 @@ MonoBehaviour:
   separationDistance: 10
   goalForce: 0.5
   avoidanceForce: 1
+  predatorDistance: 20
+  escapeForce: 8
+  velocity: {x: 0, y: 0, z: 0}
 --- !u!120 &120210330064367074
 LineRenderer:
   m_ObjectHideFlags: 1

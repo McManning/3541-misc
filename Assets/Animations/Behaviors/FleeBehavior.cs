@@ -2,30 +2,51 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class FleeBehavior : StateMachineBehaviour {
+public class FleeBehavior : StateMachineBehaviour
+{
+    private Fish agent;
 
-	 // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
-	//override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex) {
-	//
-	//}
+    override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
+    {
+        agent = animator.GetComponentInParent<Fish>();
 
-	// OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
-	//override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex) {
-	//
-	//}
+        // Reset velocity from previous state
+        // agent.velocity = Vector3.zero;
+    }
 
-	// OnStateExit is called when a transition ends and the state machine finishes evaluating this state
-	//override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex) {
-	//
-	//}
+    override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
+    {
+        Vector3 acceleration = CalculateEscape() * agent.escapeForce;
 
-	// OnStateMove is called right after Animator.OnAnimatorMove(). Code that processes and affects root motion should be implemented here
-	//override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex) {
-	//
-	//}
+        agent.velocity += acceleration;
+        agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.escapeForce);
 
-	// OnStateIK is called right after Animator.OnAnimatorIK(). Code that sets up animation IK (inverse kinematics) should be implemented here.
-	//override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex) {
-	//
-	//}
+        agent.transform.position += agent.velocity * Time.deltaTime;
+        
+        // No visible predators? Go back to school
+        if (acceleration == Vector3.zero)
+        {
+            animator.SetTrigger("Schooling");
+        }
+    }
+
+    /// <summary>
+    /// Get an escape vector from all visible predators, or a zero
+    /// vector if there are none visible
+    /// </summary>
+    /// <returns></returns>
+    private Vector3 CalculateEscape()
+    {
+        Vector3 acceleration = Vector3.zero;
+
+        foreach (var predator in agent.GetNearbyPredators())
+        {
+            // TODO: Further they are away, the less we run
+            acceleration += predator.transform.position - agent.transform.position;
+        }
+
+        acceleration.Normalize();
+
+        return acceleration * -1;
+    }
 }

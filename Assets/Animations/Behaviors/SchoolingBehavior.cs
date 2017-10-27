@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SchoolingBehavior : StateMachineBehaviour {
-    private FishController agent;
+public class SchoolingBehavior : StateMachineBehaviour
+{
+    private Fish agent;
     private GameObject goal;
     private GameObject bounds;
-    private FishController[] school;
 
     private Transform separationDebug;
     private Transform alignmentDebug;
@@ -17,8 +17,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
     // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        agent = animator.GetComponentInParent<FishController>();
-        school = FindObjectsOfType<FishController>();
+        agent = animator.GetComponentInParent<Fish>();
         goal = GameObject.Find("Fishbait");
         bounds = GameObject.Find("Bounds");
 
@@ -27,11 +26,6 @@ public class SchoolingBehavior : StateMachineBehaviour {
         cohesionDebug = agent.transform.Find("Cohesion");
         goalDebug = agent.transform.Find("Goal");
         avoidanceDebug = agent.transform.Find("Avoidance");
-
-        // Give it a random velocity
-        //Vector2 rand = Random.insideUnitCircle.normalized; // * 50.0f;
-        //agent.velocity.x = rand.x;
-        //agent.velocity.z = rand.y;
     }
 
     // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
@@ -62,7 +56,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
         Vector3 acceleration = alignment + cohesion + separation + goal + avoidance;
 
         agent.velocity += acceleration;
-        agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.maxAcceleration);
+        agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.maxVelocity);
         // agent.velocity.y = 0;
 
         agent.transform.position += agent.velocity * Time.deltaTime;
@@ -72,9 +66,12 @@ public class SchoolingBehavior : StateMachineBehaviour {
             // agent.transform.rotation = Quaternion.LookRotation(agent.velocity);
         }
         
-        // TODO: If any predators intersect our FOV, run. FOV could be a trigger, but I might have
-        // to have a separate thing set a flag. 
-        // animator.SetTrigger("Flee");
+        // See any predators nearby? Start running.
+        foreach (var predator in agent.GetNearbyPredators())
+        {
+            animator.SetTrigger("Flee");
+            break;
+        }
 	}
 
     /// <summary>
@@ -101,7 +98,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
         Vector3 acceleration = Vector3.zero;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents(agent.alignmentDistance))
+        foreach (var other in agent.GetNearbyAgents(agent.alignmentDistance))
         {
             acceleration += other.velocity;
             neighbors++;
@@ -127,7 +124,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
         Vector3 acceleration = Vector3.zero;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents(agent.cohesionDistance))
+        foreach (var other in agent.GetNearbyAgents(agent.cohesionDistance))
         {
             acceleration += other.transform.position;
             neighbors++;
@@ -155,7 +152,7 @@ public class SchoolingBehavior : StateMachineBehaviour {
         Vector3 force;
         int neighbors = 0;
 
-        foreach (var other in GetNearbyAgents(agent.separationDistance))
+        foreach (var other in agent.GetNearbyAgents(agent.separationDistance))
         {
             force = other.transform.position - agent.transform.position;
             force.Normalize();
@@ -214,26 +211,5 @@ public class SchoolingBehavior : StateMachineBehaviour {
         }
 
         return acceleration;
-    }
-
-    /// <summary>
-    /// Get all other agents (fish) that are near my agent
-    /// </summary>
-    /// <returns></returns>
-    private IEnumerable<FishController> GetNearbyAgents(float distance)
-    {
-        float angle;
-
-        foreach (var fish in school)
-        {
-            angle = Vector3.Angle(fish.transform.position - agent.transform.position, agent.transform.forward);
-
-            if (Vector3.Distance(fish.transform.position, agent.transform.position) < distance
-                && fish != agent
-                && Mathf.Abs(angle) < agent.fov * 0.5f
-            ) {
-                yield return fish;
-            }
-        }
     }
 }
