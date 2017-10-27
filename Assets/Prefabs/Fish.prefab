@@ -373,7 +373,7 @@ MonoBehaviour:
   cohesionDistance: 10
   separationForce: 2
   separationDistance: 10
-  goalForce: 1
+  goalForce: 0.5
   avoidanceForce: 1
 --- !u!120 &120210330064367074
 LineRenderer:
