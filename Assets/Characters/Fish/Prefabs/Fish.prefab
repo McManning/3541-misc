@@ -144,7 +144,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &4100998173058676
 Transform:
   m_ObjectHideFlags: 1
@@ -370,12 +370,13 @@ MonoBehaviour:
   cohesionForce: 1
   cohesionDistance: 10
   separationForce: 2
-  separationDistance: 10
+  separationDistance: 5
   goalForce: 0.5
   avoidanceForce: 1
   predatorDistance: 20
   escapeForce: 8
   velocity: {x: 0, y: 0, z: 0}
+  eaten: 0
 --- !u!120 &120210330064367074
 LineRenderer:
   m_ObjectHideFlags: 1

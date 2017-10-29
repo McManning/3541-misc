@@ -35,7 +35,7 @@ public class SchoolingBehavior : StateMachineBehaviour
         Vector3 cohesion = CalculateCohesion() * agent.cohesionForce;
         Vector3 separation = CalculateSeparation() * agent.separationForce;
         Vector3 goal = CalculateGoal() * agent.goalForce;
-        Vector3 avoidance = CalculateAvoidance() * agent.avoidanceForce;
+        // Vector3 avoidance = CalculateAvoidance() * agent.avoidanceForce;
         
         // Debug lines
 
@@ -43,7 +43,7 @@ public class SchoolingBehavior : StateMachineBehaviour
         cohesionDebug.rotation = cohesion.magnitude > 0.01f ? Quaternion.LookRotation(cohesion) : cohesionDebug.rotation;
         separationDebug.rotation = separation.magnitude > 0.01f ? Quaternion.LookRotation(separation) : separationDebug.rotation;
         goalDebug.rotation = goal.magnitude > 0.01f ? Quaternion.LookRotation(goal) : goalDebug.rotation;
-        avoidanceDebug.rotation = avoidance.magnitude > 0.01f ? Quaternion.LookRotation(avoidance) : avoidanceDebug.rotation;
+        // avoidanceDebug.rotation = avoidance.magnitude > 0.01f ? Quaternion.LookRotation(avoidance) : avoidanceDebug.rotation;
 
         /*
         alignmentDebug.localScale = new Vector3(0, 0, 1.0f + alignment.magnitude);
@@ -53,7 +53,7 @@ public class SchoolingBehavior : StateMachineBehaviour
         */
 
         // Update velocity based on the flocking ruleset
-        Vector3 acceleration = alignment + cohesion + separation + goal + avoidance;
+        Vector3 acceleration = alignment + cohesion + separation + goal; // + avoidance;
 
         agent.velocity += acceleration;
         agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.maxVelocity);
@@ -61,11 +61,12 @@ public class SchoolingBehavior : StateMachineBehaviour
 
         agent.transform.position += agent.velocity * Time.deltaTime;
 
-        if (agent.velocity.magnitude > 0)
-        {
-            // agent.transform.rotation = Quaternion.LookRotation(agent.velocity);
-        }
-        
+        // Always look in the average direction of other fish in our group (alignment)
+        // agent.transform.rotation = CalculateAverageRotation();
+
+        // Look towards goal, it's more stable
+        agent.transform.LookAt(agent.transform.position + goal);
+
         // See any predators nearby? Start running.
         foreach (var predator in agent.GetNearbyPredators())
         {
@@ -73,6 +74,22 @@ public class SchoolingBehavior : StateMachineBehaviour
             break;
         }
 	}
+
+    /// <summary>
+    /// Average out the direction of all nearby fish
+    /// </summary>
+    /// <returns></returns>
+    private Quaternion CalculateAverageRotation()
+    {
+        Quaternion average = agent.transform.rotation;
+
+        foreach (var other in agent.GetNearbyAgents(10.0f))
+        {
+            average = Quaternion.Lerp(average, other.transform.rotation, 0.5f);
+        }
+
+        return average;
+    }
 
     /// <summary>
     /// Determine a velocity vector toward the goal location

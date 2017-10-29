@@ -43,23 +43,27 @@ public class Fish : MonoBehaviour
     /// </summary>
     public float escapeForce;
 
-    [HideInInspector] 
+    [HideInInspector]
     public Vector3 velocity;
-    
+
+    [HideInInspector]
+    public bool eaten;
+
     private Fish[] school;
     private Shark[] predators;
-
+    
     void Start()
     {
         school = FindObjectsOfType<Fish>();
         predators = FindObjectsOfType<Shark>();
+        eaten = false;
     }
 
     void Update()
     {
 		
 	}
-
+    
     /// <summary>
     /// Get all other agents (fish) that are near my agent
     /// </summary>
