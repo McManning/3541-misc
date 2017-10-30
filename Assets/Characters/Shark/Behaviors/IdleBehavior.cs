@@ -9,17 +9,11 @@ public class IdleBehavior : StateMachineBehaviour
 
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        Debug.Log("Enter idle state");
         agent = animator.GetComponentInParent<Shark>();
         agent.target = GameObject.Find("SharkIdleObjective");
         duration = 0;
     }
     
-    public override void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        Debug.Log("Exit idle state");
-    }
-
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
         MoveTowardObjective();

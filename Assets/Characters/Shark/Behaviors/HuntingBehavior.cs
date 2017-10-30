@@ -8,16 +8,10 @@ public class HuntingBehavior : StateMachineBehaviour
 
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        Debug.Log("Enter hunting state");
         agent = animator.GetComponentInParent<Shark>();
         agent.target = GameObject.Find("SharkHuntingObjective");
     }
-
-    public override void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        Debug.Log("Exit hunting state");
-    }
-
+    
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
         // Swim into the hunting grounds spline

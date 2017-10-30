@@ -9,14 +9,8 @@ public class AttackBehavior : StateMachineBehaviour
 
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        Debug.Log("Enter attack state");
         agent = animator.GetComponentInParent<Shark>();
         target = agent.target.GetComponent<Fish>();
-    }
-
-    public override void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        Debug.Log("Exit attack state");
     }
 
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
