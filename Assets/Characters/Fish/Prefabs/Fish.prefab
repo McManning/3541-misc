@@ -118,8 +118,8 @@ GameObject:
   m_Component:
   - component: {fileID: 4229341590009514}
   - component: {fileID: 33541212815800380}
-  - component: {fileID: 136943306385253786}
   - component: {fileID: 23939334999990488}
+  - component: {fileID: 135723490797197404}
   - component: {fileID: 95567533313252204}
   - component: {fileID: 114450994277467974}
   m_Layer: 0
@@ -144,7 +144,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &4100998173058676
 Transform:
   m_ObjectHideFlags: 1
@@ -326,7 +326,7 @@ MeshFilter:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1798824107947812}
-  m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!33 &33758362040243058
 MeshFilter:
   m_ObjectHideFlags: 1
@@ -372,11 +372,12 @@ MonoBehaviour:
   separationForce: 2
   separationDistance: 5
   goalForce: 0.5
-  avoidanceForce: 1
+  avoidanceForce: 10
   predatorDistance: 20
   escapeForce: 8
   velocity: {x: 0, y: 0, z: 0}
   eaten: 0
+  colliders: []
 --- !u!120 &120210330064367074
 LineRenderer:
   m_ObjectHideFlags: 1
@@ -905,16 +906,15 @@ SphereCollider:
   serializedVersion: 2
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
---- !u!136 &136943306385253786
-CapsuleCollider:
+--- !u!135 &135723490797197404
+SphereCollider:
   m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1798824107947812}
   m_Material: {fileID: 0}
   m_IsTrigger: 0
-  m_Enabled: 1
+  m_Enabled: 0
+  serializedVersion: 2
   m_Radius: 0.5
-  m_Height: 2
-  m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
