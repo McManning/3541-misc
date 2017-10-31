@@ -36,12 +36,7 @@ public class Shark : MonoBehaviour
     {
         school = FindObjectsOfType<Fish>();
     }
-
-    void Update()
-    {
-        
-    }
-
+    
     public void OnDrawGizmos()
     {
         if (target != null)
@@ -67,7 +62,7 @@ public class Shark : MonoBehaviour
     }
 
     /// <summary>
-    /// Determine if a position is in our FOV cone
+    /// Determine if a position is in our FOV cone and is not obstructed by colliders
     /// </summary>
     /// <param name="position"></param>
     /// <returns></returns>
@@ -75,8 +70,9 @@ public class Shark : MonoBehaviour
     {
         float angle = Vector3.Angle(position - transform.position, transform.forward);
 
-        return Mathf.Abs(angle) < fovDegree * 0.5f 
-            && Vector3.Distance(position, transform.position) < fovRadius;
+        return Mathf.Abs(angle) < fovDegree * 0.5f
+            && Vector3.Distance(position, transform.position) < fovRadius
+            && !Physics.Linecast(position, transform.position);
     }
 
 }

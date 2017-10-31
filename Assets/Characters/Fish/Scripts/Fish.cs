@@ -49,6 +49,9 @@ public class Fish : MonoBehaviour
     [HideInInspector]
     public bool eaten;
 
+    [HideInInspector]
+    public BoxCollider[] colliders;
+
     private Fish[] school;
     private Shark[] predators;
     
@@ -56,13 +59,12 @@ public class Fish : MonoBehaviour
     {
         school = FindObjectsOfType<Fish>();
         predators = FindObjectsOfType<Shark>();
+
+        // Box colliders represent all other collidables in the scene (ground, cubes, etc)
+        colliders = FindObjectsOfType<BoxCollider>();
+
         eaten = false;
     }
-
-    void Update()
-    {
-		
-	}
     
     /// <summary>
     /// Get all other agents (fish) that are near my agent
@@ -73,19 +75,14 @@ public class Fish : MonoBehaviour
     {
         foreach (var fish in school)
         {
-            if (Vector3.Distance(fish.transform.position, transform.position) < distance
-                && fish != this
-                && IsInFOV(fish.transform.position)
-            ) {
+            if (fish != this && IsInFOV(fish.transform.position, distance)) {
                 yield return fish;
             }
         }
     }
 
     /// <summary>
-    /// Get all predators near my agent
-    /// Note this ignores FOV, fish are just inherently capable of sensing danger,
-    /// because gills.
+    /// Get all predators visible to my agent
     /// </summary>
     /// <param name="distance"></param>
     /// <returns></returns>
@@ -93,7 +90,7 @@ public class Fish : MonoBehaviour
     {
         foreach (var predator in predators)
         {
-            if (Vector3.Distance(predator.transform.position, transform.position) < predatorDistance)
+            if (IsInFOV(predator.transform.position, predatorDistance))
             {
                 yield return predator;
             }
@@ -101,13 +98,17 @@ public class Fish : MonoBehaviour
     }
 
     /// <summary>
-    /// Return true if the position is within our FOV
+    /// Return true if the position is within our FOV and is not obstructed by colliders
     /// </summary>
     /// <param name="position"></param>
+    /// <param name="distance"></param>
     /// <returns></returns>
-    public bool IsInFOV(Vector3 position)
+    public bool IsInFOV(Vector3 position, float distance)
     {
         float angle = Vector3.Angle(position - transform.position, transform.forward);
-        return Mathf.Abs(angle) < fov * 0.5f;
+
+        return Mathf.Abs(angle) < fov * 0.5f
+            && Vector3.Distance(position, transform.position) < distance
+            && !Physics.Linecast(position, transform.position);
     }
 }
