@@ -11,6 +11,7 @@ public class AttackBehavior : StateMachineBehaviour
     {
         agent = animator.GetComponentInParent<Shark>();
         target = agent.target.GetComponent<Fish>();
+        agent.velocity = Vector3.zero;
     }
 
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
@@ -27,7 +28,6 @@ public class AttackBehavior : StateMachineBehaviour
         // If we get close enough to eat the target, signal eat and swap back to idle
         if (Vector3.Distance(agent.transform.position, target.transform.position) < agent.biteRadius)
         {
-            Debug.Log("Ate target");
             target.eaten = true;
             animator.SetTrigger("Idle");
         }
