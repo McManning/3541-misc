@@ -13,9 +13,10 @@ Agent vision:
 		but for fleeing from predators it's at 20 units.
 
 Additional features:
-	- Fish are flocking. It's not as smooth as I'd like though.
+	- Fish can't pass through anything with a BoxCollider
+	- Everything that has FOV (Sharks/Fish) also handle obstruction from BoxColliders via raycasting
+	- Fish are flocking. Movement isn't nearly as smooth as I'd like though.
 	- Fish have an objective (Fishbait) that moves along a spline
-	- 
 
 
 *	Bezier spline implementation was done prior to us talking about it in class so I didn't realize we were going to go through it.

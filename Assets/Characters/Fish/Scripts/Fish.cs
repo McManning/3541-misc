@@ -43,6 +43,8 @@ public class Fish : MonoBehaviour
     /// </summary>
     public float escapeForce;
 
+    public float thinkThreshold;
+
     [HideInInspector]
     public Vector3 velocity;
 
