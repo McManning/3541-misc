@@ -20,7 +20,7 @@ public class FleeBehavior : StateMachineBehaviour
         }
 
         // Try to run from all visible predators
-        Vector3 acceleration = CalculateEscape() * agent.escapeForce;
+        Vector3 acceleration = CalculateEscape() * agent.escapeForce + CalculateAvoidance() * agent.avoidanceForce;
 
         agent.velocity += acceleration;
         agent.velocity = Vector3.ClampMagnitude(agent.velocity, agent.escapeForce);
@@ -54,5 +54,33 @@ public class FleeBehavior : StateMachineBehaviour
         acceleration.Normalize();
 
         return acceleration * -1;
+    }
+
+    /// <summary>
+    /// Determine a vector away from colliders
+    /// </summary>
+    /// <returns></returns>
+    private Vector3 CalculateAvoidance()
+    {
+        RaycastHit hit;
+        Vector3 acceleration = Vector3.zero;
+
+        if (Physics.Raycast(agent.transform.position, agent.velocity, out hit))
+        {
+            // This is a pretty lazy stopping force. Basically - don't pass through solids.
+            // If the objective or the flock add forces through the solid, we'll pretty much
+            // just sit there and wait until those forces change.
+            if (hit.distance < 2.0f)
+            {
+                acceleration = hit.normal;
+            }
+        }
+
+        if (acceleration.magnitude > 0)
+        {
+            acceleration = Vector3.ClampMagnitude(acceleration, agent.maxAcceleration);
+        }
+
+        return acceleration;
     }
 }
