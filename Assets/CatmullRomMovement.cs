@@ -23,27 +23,34 @@ public class CatmullRomMovement : MonoBehaviour
     public float tension = 0.5f;
 
     /// <summary>
-    /// Whether the spline should be looped
+    /// General speed value
     /// </summary>
-    public bool loop = false;
-
-    [Range(0, 20)]
-    public int debugSamplePoints = 10;
-
-    public float speed = 0.02f;
-
-    private float splineTick = 0;
-    
-    private float sampleStep = 0.5f;
+    public float speed = 0.25f;
 
     /// <summary>
-    /// Lookup table mapping the following:
-    /// x. control point index number we're within at timestep y
-    /// y. timestep normalized to [0, 1]
-    /// z. arc distance traveled across index x
-    /// w. total distance traveled at time y (*not* normalized)
+    /// Color to render the spline as in the editor
     /// </summary>
-    private List<Vector4> LUT;
+    public Color splineColor = Color.red;
+
+    /// <summary>
+    /// Whether the spline should be looped
+    /// </summary>
+    private bool loop = true;
+
+    /// <summary>
+    /// [0, 1] movement tick through the spline
+    /// </summary>
+    private float splineTick = 0;
+    
+    /// <summary>
+    /// Samping rate to generate LUT table
+    /// </summary>
+    private float sampleStep = 0.01f;
+
+    /// <summary>
+    /// Lookup table mapping time to arc lengths
+    /// </summary>
+    private List<Vector3> LUT;
 
     /// <summary>
     /// Arc length of each subspline
@@ -54,30 +61,43 @@ public class CatmullRomMovement : MonoBehaviour
     /// Arc length of the total system
     /// </summary>
     private float totalArcLength;
-
-    private Vector3 velocity;
-
+    
 	void Start()
     {
         // Generate LUT mapping positions on the arc
         // to time steps and subspline indices
         GenerateLUT();
 
-        DebugDump();
+        // DebugDump();
 
         transform.position = GetPoint(0);
     }
 
     void Update()
     {
-        splineTick += speed * Time.deltaTime;
-
+        /*
+        splineTick += maxVelocity * Time.deltaTime;
+        
         if (splineTick > 1.0f)
         {
             splineTick = 0;
         }
         
         transform.position = GetPoint(splineTick);
+        */
+
+        splineTick += Time.deltaTime * speed;
+        if (splineTick > 1.0f)
+        {
+            splineTick = 0;
+        }
+
+        // Cubic easing function
+        float s = -2 * Mathf.Pow(splineTick, 3) + 3 * Mathf.Pow(splineTick, 2);
+        transform.position = GetPoint(s);
+
+        Vector3 d = GetDirection(s);
+        transform.rotation = Quaternion.LookRotation(d);
 	}
 
     /// <summary>
@@ -139,59 +159,33 @@ public class CatmullRomMovement : MonoBehaviour
         {
             if (u < LUT[i].y / GetArcLength())
             {
-                int indexHigh = (int)LUT[i].x;
-                int indexLow = (int)LUT[i - 1].x;
-                int index = indexHigh;
-                float timeHigh = LUT[i].y / GetArcLength();
-                float timeLow = LUT[i - 1].y / GetArcLength();
-                float stepHigh = LUT[i].z;
-                float stepLow = LUT[i - 1].z;
-                /*
-                // If we're between indices, use a point in either index
-                if (Mathf.Abs(indexHigh - indexLow) > 0.01f)
-                {
-                    if (u / GetSubsplineArcLength(indexLow) > 1.0f)
-                    {
-                        // In high index, set low values to 0
-                        stepLow = 0;
-                        timeLow = 0;
-                        index = indexHigh;
-                        Debug.Log("use high");
-                    }
-                    else
-                    {
-                        // In low index, set highs to 1
-                        stepHigh = 1.0f;
-                        timeHigh = 1.0f;
-                        index = indexLow;
-                        Debug.Log("use low");
-                    }
-                }
-
-                Debug.Log("index " + index + " stepLow " + stepLow + " stepHigh " + stepHigh + " timeLow " + timeLow + " timeHigh " + timeHigh);
-
-                // Interpolate the point between low & high
-                float interpolated = Mathf.Lerp(
-                    stepLow,
-                    stepHigh,
-                    (u - timeLow) / (timeHigh - timeLow)
-                );
-                */
-                
-                float interpolated = stepHigh;
-                index = indexHigh;
-
                 return GetSubsplinePoint(
-                    index, 
-                    interpolated // / GetSubsplineArcLength(index)
+                    (int)LUT[i].x,
+                    LUT[i].z
                 );
             }
         }
-
-        // Not on the table? Assume to be at the end of the arc then
-        return GetSubsplinePoint(controlPoints.Length, 1.0f);
+        
+        return Vector3.zero;
     }
     
+    private Vector3 GetDirection(float u)
+    {
+        Vector3 start = GetPoint(u);
+        Vector3 end;
+
+        if (u + sampleStep > 1.0f)
+        {
+            end = GetPoint(0);
+        } 
+        else
+        {
+            end = GetPoint(u + sampleStep);
+        }
+
+        return (end - start).normalized;
+    }
+
     /// <summary>
     /// Approximate an arc length of the subspline at index
     /// </summary>
@@ -210,54 +204,12 @@ public class CatmullRomMovement : MonoBehaviour
     {
         return totalArcLength;
     }
-
-    private void GenerateLUTOld()
-    {
-        /// Lookup table mapping the following:
-        /// x. control point index number we're within at timestep y
-        /// y. timestep normalized to [0, 1]
-        /// z. arc distance traveled across index x
-        /// w. total distance traveled at time y (*not* normalized)
-
-        LUT = new List<Vector4>
-        {
-            Vector4.zero
-        };
-
-        arcLengths = new float[controlPoints.Length];
-        totalArcLength = 0;
-
-        for (int index = 0; index < controlPoints.Length; index++)
-        {
-            Vector3 prev = GetSubsplinePoint(index, 0);
-            Vector3 next;
-            
-            arcLengths[index] = 0;
-
-            for (float f = sampleStep; f < 1.0f; f += sampleStep)
-            {
-                next = GetSubsplinePoint(index, f);
-                float length = (next - prev).magnitude;
-                arcLengths[index] += length;
-                totalArcLength += length;
-                prev = next;
-                
-                LUT.Add(new Vector4()
-                {
-                    x = index,
-                    y = totalArcLength,
-                    z = arcLengths[index],
-                    w = 0
-                });
-            }
-        }
-    }
-
+    
     void GenerateLUT()
     {
-        LUT = new List<Vector4>
+        LUT = new List<Vector3>
         {
-            Vector4.zero
+            Vector3.zero
         };
 
         arcLengths = new float[controlPoints.Length];
@@ -281,8 +233,7 @@ public class CatmullRomMovement : MonoBehaviour
                 {
                     x = index,
                     y = totalArcLength,
-                    z = f / arcLengths[index],
-                    w = 0
+                    z = f / arcLengths[index]
                 });
             }
 
@@ -334,7 +285,7 @@ public class CatmullRomMovement : MonoBehaviour
         */
 
         // Draw spline estimations
-        Gizmos.color = Color.red;
+        Gizmos.color = splineColor;
 
         for (float i = 0.02f; i < 1.0f; i += 0.02f)
         {
