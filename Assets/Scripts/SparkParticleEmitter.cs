@@ -13,10 +13,13 @@ public class SparkParticleEmitter : MonoBehaviour
     public enum EmitterType
     {
         Point = 0,
-        Box = 1
+        Box = 1,
+        Spline = 2
     }
 
     #region Configurations exposed to the Unity editor
+
+    [Header("Resources")]
 
     /// <summary>
     /// Compute shader used to update particle positions
@@ -28,6 +31,8 @@ public class SparkParticleEmitter : MonoBehaviour
     /// </summary>
     public Material particleMaterial;
 
+    [Header("Emitter Settings")]
+
     /// <summary>
     /// How particles are emitted
     /// </summary>
@@ -37,6 +42,41 @@ public class SparkParticleEmitter : MonoBehaviour
     /// Maximum number of particles to be spawned
     /// </summary>
     public int particleCount;
+
+    /// <summary>
+    /// Delay between spawning new particles
+    /// </summary>
+    public float spawnDelay;
+
+    /// <summary>
+    /// Scaling factor for the initial velocity of particles
+    /// </summary>
+    public float initialVelocityScale;
+
+    /// <summary>
+    /// Randomness factor for the initial velocity
+    /// </summary>
+    public float initialVelocityNoise;
+
+    /// <summary>
+    /// Scaling factor for how much the emitter's velocity
+    /// factors into initial velocity of new particles
+    /// </summary>
+    public float emitterVelocityScale;
+
+    [Header("Particle Settings")]
+
+    /// <summary>
+    /// Fixed life for particles
+    /// </summary>
+    public float ttl;
+
+    /// <summary>
+    /// Distribution of randomly chosen mass values for new 
+    /// particles. Mass will affect how gravity affects the
+    /// particle, as well as how curl noise may affect it
+    /// </summary>
+    public AnimationCurve mass;
 
     /// <summary>
     /// Gravity affector, basically. If there's wind in
@@ -51,28 +91,11 @@ public class SparkParticleEmitter : MonoBehaviour
     public float curlFactor;
     
     /// <summary>
-    /// Distribution of randomly chosen mass values for new 
-    /// particles. Mass will affect how gravity affects the
-    /// particle, as well as how curl noise may affect it
-    /// </summary>
-    public AnimationCurve mass;
-
-    /// <summary>
-    /// Fixed life for particles
-    /// </summary>
-    public float ttl;
-
-    /// <summary>
     /// Scaling factor applied to perlin noise generation
     /// TODO: Non-configurable? Kind of a debug setting
     /// </summary>
     public float noiseScale;
 
-    /// <summary>
-    /// Delay between spawning new particles
-    /// </summary>
-    public float spawnDelay;
-    
     #endregion
 
     /// <summary>
@@ -151,11 +174,18 @@ public class SparkParticleEmitter : MonoBehaviour
         computeShader.SetInt("EmitterType", (int)emitterType);
         computeShader.SetVector("EmitterPosition", emitterPosition);
         computeShader.SetVector("EmitterVelocity", emitterVelocity);
-        computeShader.SetVector("EmitterBoxMin", bounds.bounds.min);
-        computeShader.SetVector("EmitterBoxMax", bounds.bounds.max);
+
+        if (emitterType == EmitterType.Box)
+        {
+            computeShader.SetVector("EmitterBoxMin", bounds.bounds.min);
+            computeShader.SetVector("EmitterBoxMax", bounds.bounds.max);
+        }
 
         computeShader.SetFloat("TTL", ttl);
         computeShader.SetFloat("SpawnDelay", spawnDelay);
+        computeShader.SetFloat("InitialVelocityScale", initialVelocityScale);
+        computeShader.SetFloat("InitialVelocityNoise", initialVelocityNoise);
+        computeShader.SetFloat("EmitterVelocityScale", emitterVelocityScale);
 
         // Note: I'm running into an issue where the compute shader refuses to 
         // acknowledge indices > 7 in `float Mass[anything > 8]`. It's a problem
@@ -176,8 +206,12 @@ public class SparkParticleEmitter : MonoBehaviour
         bounds = GetComponent<BoxCollider>();
         kernel = computeShader.FindKernel("CSMain");
 
-        // Hack workaround for an array issue in the compute shader
-        curvesTexture = new Texture2D(32, 32);
+        // Compressed representation of our spline curve (if applicable)
+        // and the mass distribution curve. Both sampled in the compute shader.
+        // Note that this needs to be an RGBAFloat in order to support negatives
+        // (because I'm too lazy to scale to [0, 1]). Not sure what the hardware
+        // support for that is though...
+        curvesTexture = new Texture2D(32, 32, TextureFormat.RGBAFloat, false, true);
         computeShader.SetTexture(kernel, "CurvesSampler", curvesTexture);
 
         // Instantiate particles and push onto the buffer
@@ -192,7 +226,10 @@ public class SparkParticleEmitter : MonoBehaviour
     /// </summary>
     void OnDestroy()
     {
-        particleBuffer.Dispose();
+        if (particleBuffer != null)
+        {
+            particleBuffer.Dispose();
+        }
     }
 
     void Update()
@@ -275,13 +312,25 @@ public class SparkParticleEmitter : MonoBehaviour
     
     private void UpdateAnimationCurvesTextures()
     {
-        // Buffer for mass (stored in R channel of an 8x8 texture)
+        BezierSpline spline = GetComponent<BezierSpline>();
+        var b = new Bounds();
         var pixels = new Color[1024];
+
         for (int i = 0; i < 1024; i++)
         {
-            pixels[i] = new Color(mass.Evaluate(
+            // A channel - mass distribution
+            float a = mass.Evaluate(
                 i / 1024.0f
-            ), 0, 0);
+            );
+
+            // RGB channel - spline samples (if applicable)
+            var rgb = Vector3.zero;
+            if (emitterType == EmitterType.Spline)
+            {
+                rgb = spline.GetPoint(i / 1024.0f);
+            }
+
+            pixels[i] = new Color(rgb.x, rgb.y, rgb.z, a);
         }
 
         // Set pixels and reupload to the GPU

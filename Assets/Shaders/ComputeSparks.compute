@@ -22,6 +22,9 @@ float TTL;
 // Texture containing multiple curve stop points
 Texture2D<float4> CurvesSampler;
 float SpawnDelay;
+float InitialVelocityScale;
+float InitialVelocityNoise;
+float EmitterVelocityScale;
 
 // Physics properties
 float3 ConstantAcceleration;
@@ -43,7 +46,7 @@ RWStructuredBuffer<Particle> ParticleBuffer;
 static const float PI = 3.14159265f;
 
 /**
-* Non-time dependent curl. Also fixed axis alignment issue...
+* Non-time dependent curl. Also finally fixed axis alignment issue
 */
 float3 Curl(float3 v)
 {
@@ -97,37 +100,64 @@ void ResetParticle(inout Particle particle)
 {
 	particle.born = 1;
 
-	// Point emitter
-	if (EmitterType == 0) {
-		particle.position = EmitterPosition;
-	}
-	else { // Box emitter
+	float width, height;
+	CurvesSampler.GetDimensions(width, height);
+
+	// Select a random value from the A channel to 
+	// use as our mass (defined by a curve distribution)
+	particle.mass = CurvesSampler[float2(
+		random() * width,
+		random() * height
+	)].a;
+
+	// Zero initial velocity unless the emitter type dictates otherwise
+	particle.velocity = float3(0, 0, 0);
+
+	// Box emitter
+	if (EmitterType == 1) {
+		// Spawn somewhere randomly within the box
 		particle.position = float3(
 			randomBetween(EmitterBoxMin.x, EmitterBoxMax.x),
 			randomBetween(EmitterBoxMin.y, EmitterBoxMax.y),
 			randomBetween(EmitterBoxMin.z, EmitterBoxMax.z)
 		);
 	}
-	
-	// Sample a point from our mass distribution 
-	// (R channel of the curves sample)
-	float width, height;
-	CurvesSampler.GetDimensions(width, height);
+	else if (EmitterType == 2) { // spline emitter
+		// Same deal as mass sampling, but the curve 
+		// points are stored in the RGB channel
+		float2 pixel = float2(random() * width, random() * height);
+		particle.position = CurvesSampler[pixel].rgb;
 
-	particle.mass = CurvesSampler[float2(
-		random() * width,
-		random() * height
-		)].r;
+		// To determine an initial velocity at each point,
+		// we need to sample the previous pixel and get a
+		// velocity vector between the two
+		float2 prev = float2(pixel.x - 1, pixel.y);
+		if (prev.x < 0) { // wrap
+			prev = float2(width - 1, pixel.y - 1);
+		}
 
-	// Set an initial random angular velocity
-	particle.velocity = float3(
-		randomBetween(-1, 1) * particle.mass,
-		randomBetween(-1, 1) * particle.mass,
-		randomBetween(-1, 1) * particle.mass
-	);
+		// Initial velocity is the normal direction between two points on the spline
+		particle.velocity = normalize(particle.position - CurvesSampler[prev].rgb);
+	}
+	else { // assume point emitter
+		particle.position = EmitterPosition;
+	}
 
-	// Apply emitter velocity, scaled by particle mass
-	particle.velocity += EmitterVelocity * CurlFactor * particle.mass;
+	// Initial velocity is normalized. Rescale down
+	particle.velocity *= InitialVelocityScale;
+
+	// Apply emitter velocity, with more scaling
+	particle.velocity += EmitterVelocity * EmitterVelocityScale;
+
+	// Apply a random noise factor to the initial velocity
+	particle.velocity += float3(
+		randomBetween(-1, 1),
+		randomBetween(-1, 1),
+		randomBetween(-1, 1)
+	) * InitialVelocityNoise;
+
+	// Reduce initial velocity for smaller particles (less grav pull)
+	particle.velocity *= particle.mass;
 
 	// Life depends on the spark. For large spark, this is how long
 	// it takes for the spark to burn out (so a factor of mass). For
