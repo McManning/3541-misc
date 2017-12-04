@@ -67,16 +67,16 @@ public class SparkParticleEmitter : MonoBehaviour
     [Header("Particle Settings")]
 
     /// <summary>
-    /// Fixed life for particles
-    /// </summary>
-    public float ttl;
-
-    /// <summary>
     /// Distribution of randomly chosen mass values for new 
     /// particles. Mass will affect how gravity affects the
     /// particle, as well as how curl noise may affect it
     /// </summary>
     public AnimationCurve mass;
+
+    /// <summary>
+    /// Fixed life for particles
+    /// </summary>
+    public AnimationCurve TTL;
 
     /// <summary>
     /// Gravity affector, basically. If there's wind in
@@ -108,7 +108,8 @@ public class SparkParticleEmitter : MonoBehaviour
     /// </summary>
     private int kernel;
 
-    private Texture2D curvesTexture;
+    private Texture2D splineSamplesTexture;
+    private Texture2D curveSamplesTexture;
 
     /// <summary>
     /// Typically just transform.position
@@ -180,8 +181,7 @@ public class SparkParticleEmitter : MonoBehaviour
             computeShader.SetVector("EmitterBoxMin", bounds.bounds.min);
             computeShader.SetVector("EmitterBoxMax", bounds.bounds.max);
         }
-
-        computeShader.SetFloat("TTL", ttl);
+        
         computeShader.SetFloat("SpawnDelay", spawnDelay);
         computeShader.SetFloat("InitialVelocityScale", initialVelocityScale);
         computeShader.SetFloat("InitialVelocityNoise", initialVelocityNoise);
@@ -192,8 +192,8 @@ public class SparkParticleEmitter : MonoBehaviour
         // that's outside my domain. Write a unity forum question later...
         // computeShader.SetFloats("Mass", new float[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 });
 
-        // Workaround for the above. I'm storing animation curves in textures for now.
-        UpdateAnimationCurvesTextures();
+        // Workaround for the above. I'm packing animation curves into textures
+        UpdateSampleTextures();
         
         // Physics properties
         computeShader.SetVector("ConstantAcceleration", constantAcceleration);
@@ -201,18 +201,31 @@ public class SparkParticleEmitter : MonoBehaviour
         computeShader.SetFloat("NoiseScale", noiseScale);
     }
 
-    void Start()
+    void Awake()
     {
         bounds = GetComponent<BoxCollider>();
+
+        // Note that this is going to throw an assertion failure in Unity 2017.1.1f1. It's currently
+        // a bug in the engine. See: https://issuetracker.unity3d.com/issues/assertion-transfer-dot-isremappptrtransfer-and-and-transfer-dot-isreadingpptr-is-thrown-when-instantiating-a-compute-shader
+        // computeShader = Instantiate(Resources.Load("Shaders/Sparks")) as ComputeShader;
+        
+        // However, it still loads the shader and we need to do this in order to have
+        // multiple instances of the same compute shader active in a scene at once.
+        // Otherwise we run into a problem of shared GPU memory between instances. 
+        // The bug is fixed in a future build of Unity.
+
         kernel = computeShader.FindKernel("CSMain");
 
         // Compressed representation of our spline curve (if applicable)
-        // and the mass distribution curve. Both sampled in the compute shader.
+        // and the distribution curves. Both sampled in the compute shader.
         // Note that this needs to be an RGBAFloat in order to support negatives
         // (because I'm too lazy to scale to [0, 1]). Not sure what the hardware
         // support for that is though...
-        curvesTexture = new Texture2D(32, 32, TextureFormat.RGBAFloat, false, true);
-        computeShader.SetTexture(kernel, "CurvesSampler", curvesTexture);
+        curveSamplesTexture = new Texture2D(32, 32, TextureFormat.RGBAFloat, false, true);
+        computeShader.SetTexture(kernel, "CurvesSampler", curveSamplesTexture);
+
+        splineSamplesTexture = new Texture2D(32, 32, TextureFormat.RGBAFloat, false, true);
+        computeShader.SetTexture(kernel, "SplineSampler", splineSamplesTexture);
 
         // Instantiate particles and push onto the buffer
         Particle[] particles = new Particle[particleCount];
@@ -310,31 +323,36 @@ public class SparkParticleEmitter : MonoBehaviour
         return texture;
     }
     
-    private void UpdateAnimationCurvesTextures()
+    private void UpdateSampleTextures()
     {
         BezierSpline spline = GetComponent<BezierSpline>();
-        var b = new Bounds();
-        var pixels = new Color[1024];
+        var splinePixels = new Color[1024];
+        var curvePixels = new Color[1024];
 
         for (int i = 0; i < 1024; i++)
         {
-            // A channel - mass distribution
-            float a = mass.Evaluate(
-                i / 1024.0f
-            );
+            // R channel - mass distribution
+            float r = mass.Evaluate(i / 1024.0f);
 
-            // RGB channel - spline samples (if applicable)
-            var rgb = Vector3.zero;
+            // G channel - TTL distribution
+            float g = TTL.Evaluate(i / 1024.0f);
+
+            // If we have a spline emitter, set RGB channels 
+            // to a point sampled on the spline
             if (emitterType == EmitterType.Spline)
             {
-                rgb = spline.GetPoint(i / 1024.0f);
+                var p = spline.GetPoint(i / 1024.0f);
+                splinePixels[i] = new Color(p.x, p.y, p.z);
             }
 
-            pixels[i] = new Color(rgb.x, rgb.y, rgb.z, a);
+            curvePixels[i] = new Color(r, g, 0, 1);
         }
 
         // Set pixels and reupload to the GPU
-        curvesTexture.SetPixels(pixels);
-        curvesTexture.Apply();
+        splineSamplesTexture.SetPixels(splinePixels);
+        splineSamplesTexture.Apply();
+
+        curveSamplesTexture.SetPixels(curvePixels);
+        curveSamplesTexture.Apply();
     }
 }

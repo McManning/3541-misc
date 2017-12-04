@@ -16,11 +16,13 @@ float3 EmitterVelocity;
 float3 EmitterBoxMin;
 float3 EmitterBoxMax;
 
-float TTL;
-//float1 Mass[13];
-
 // Texture containing multiple curve stop points
 Texture2D<float4> CurvesSampler;
+
+// Texture containing the spline path of the omitter
+// (if EmitterType == 2)
+Texture2D<float4> SplineSampler;
+
 float SpawnDelay;
 float InitialVelocityScale;
 float InitialVelocityNoise;
@@ -103,12 +105,12 @@ void ResetParticle(inout Particle particle)
 	float width, height;
 	CurvesSampler.GetDimensions(width, height);
 
-	// Select a random value from the A channel to 
-	// use as our mass (defined by a curve distribution)
-	particle.mass = CurvesSampler[float2(
-		random() * width,
-		random() * height
-	)].a;
+	// Select a random value from from the sample to use
+	// as our mass and TTL distributions
+	float2 s = float2(random() * width, random() * height);
+
+	particle.mass = CurvesSampler[s].r;
+	particle.life = CurvesSampler[s].g;
 
 	// Zero initial velocity unless the emitter type dictates otherwise
 	particle.velocity = float3(0, 0, 0);
@@ -123,10 +125,13 @@ void ResetParticle(inout Particle particle)
 		);
 	}
 	else if (EmitterType == 2) { // spline emitter
-		// Same deal as mass sampling, but the curve 
-		// points are stored in the RGB channel
-		float2 pixel = float2(random() * width, random() * height);
-		particle.position = CurvesSampler[pixel].rgb;
+		float sw, sh;
+		SplineSampler.GetDimensions(sw, sh);
+
+		// Sample the position from the texture representation
+		// of the coordinates along the spline
+		float2 pixel = float2(random() * sw, random() * sh);
+		particle.position = SplineSampler[pixel].rgb;
 
 		// To determine an initial velocity at each point,
 		// we need to sample the previous pixel and get a
@@ -137,7 +142,7 @@ void ResetParticle(inout Particle particle)
 		}
 
 		// Initial velocity is the normal direction between two points on the spline
-		particle.velocity = normalize(particle.position - CurvesSampler[prev].rgb);
+		particle.velocity = normalize(particle.position - SplineSampler[prev].rgb);
 	}
 	else { // assume point emitter
 		particle.position = EmitterPosition;
@@ -158,16 +163,6 @@ void ResetParticle(inout Particle particle)
 
 	// Reduce initial velocity for smaller particles (less grav pull)
 	particle.velocity *= particle.mass;
-
-	// Life depends on the spark. For large spark, this is how long
-	// it takes for the spark to burn out (so a factor of mass). For
-	// smaller sparks, this is a fixed rate
-	if (particle.mass < 0.1) {
-		particle.life = random() * TTL;
-	}
-	else {
-		particle.life = TTL * particle.mass;
-	}
 }
 
 /**
