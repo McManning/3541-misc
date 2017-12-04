@@ -1,0 +1,238 @@
+﻿
+#pragma kernel CSMain
+
+#include "Random.cginc"
+#include "Noise4D.cginc"
+
+// Physics simulation timing
+float DeltaTime;
+float Time;
+
+// Emitter properties
+int ParticleCount;
+int EmitterType;
+float3 EmitterPosition; // Unused - we just spawn in the box
+float3 EmitterVelocity;
+float3 EmitterBoxMin;
+float3 EmitterBoxMax;
+
+// Texture containing multiple curve stop points
+Texture2D<float4> CurvesSampler;
+
+// Texture containing the spline path of the omitter
+// (if EmitterType == 2)
+Texture2D<float4> SplineSampler;
+
+float SpawnDelay;
+float InitialVelocityScale;
+float InitialVelocityNoise;
+float EmitterVelocityScale;
+
+// Physics properties
+float3 ConstantAcceleration;
+float CurlFactor;
+float NoiseScale;
+
+// Properties of a distinct particle in the system
+// MUST match SparkParticleEmitter.Particle
+struct Particle
+{
+	float3 position;
+	float3 velocity;
+	float mass;
+	float life;
+	int born;
+};
+
+RWStructuredBuffer<Particle> ParticleBuffer;
+static const float PI = 3.14159265f;
+
+/**
+* Non-time dependent curl. Also finally fixed axis alignment issue
+*/
+float3 Curl(float3 v)
+{
+	float epsilon = 0.0001; // Small change for derivation estimate
+	float n1, n2, a, b;
+	float3 curl = float3(0.0, 0.0, 0.0);
+
+	// Example of how to compute derivatives via
+	// https://petewerner.blogspot.com/2015/02/intro-to-curl-noise.html
+
+	// Compute delta x = dz/dy - dy/dz
+	n1 = snoise3D(float3(v.x, v.y + epsilon, v.z) * NoiseScale).z;
+	n2 = snoise3D(float3(v.x, v.y - epsilon, v.z) * NoiseScale).z;
+	a = (n1 - n2) / (2.0 * epsilon);
+
+	n1 = snoise3D(float3(v.x, v.y, v.z + epsilon) * NoiseScale).y;
+	n2 = snoise3D(float3(v.x, v.y, v.z - epsilon) * NoiseScale).y;
+	b = (n1 - n2) / (2.0 * epsilon);
+
+	curl.x = a - b;
+
+	// delta y = dx/dz - dz/dx
+	n1 = snoise3D(float3(v.x, v.y, v.z + epsilon) * NoiseScale).x;
+	n2 = snoise3D(float3(v.x, v.y, v.z - epsilon) * NoiseScale).x;
+	a = (n1 - n2) / (2.0 * epsilon);
+
+	n1 = snoise3D(float3(v.x + epsilon, v.y, v.z) * NoiseScale).z;
+	n2 = snoise3D(float3(v.x - epsilon, v.y, v.z) * NoiseScale).z;
+	b = (n1 - n2) / (2.0 * epsilon);
+
+	curl.y = a - b;
+
+	// delta z = dy/dx - dx/dy
+	n1 = snoise3D(float3(v.x + epsilon, v.y, v.z) * NoiseScale).y;
+	n2 = snoise3D(float3(v.x - epsilon, v.y, v.z) * NoiseScale).y;
+	a = (n1 - n2) / (2.0 * epsilon);
+
+	n1 = snoise3D(float3(v.x, v.y + epsilon, v.z) * NoiseScale).x;
+	n2 = snoise3D(float3(v.x, v.y - epsilon, v.z) * NoiseScale).x;
+	b = (n1 - n2) / (2.0 * epsilon);
+
+	curl.z = a - b;
+
+	return curl;
+}
+
+/**
+* Reset a particle to an initial state within the emitter
+*/
+void ResetParticle(inout Particle particle)
+{
+	particle.born = 1;
+
+	float width, height;
+	CurvesSampler.GetDimensions(width, height);
+
+	// Select a random value from from the sample to use
+	// as our mass and TTL distributions
+	float2 s = float2(random() * width, random() * height);
+
+	particle.mass = CurvesSampler[s].r;
+	particle.life = CurvesSampler[s].g;
+
+	// Zero initial velocity unless the emitter type dictates otherwise
+	particle.velocity = float3(0, 0, 0);
+
+	// Box emitter
+	if (EmitterType == 1) {
+		// Spawn somewhere randomly within the box
+		particle.position = float3(
+			randomBetween(EmitterBoxMin.x, EmitterBoxMax.x),
+			randomBetween(EmitterBoxMin.y, EmitterBoxMax.y),
+			randomBetween(EmitterBoxMin.z, EmitterBoxMax.z)
+		);
+	}
+	else if (EmitterType == 2) { // spline emitter
+		float sw, sh;
+		SplineSampler.GetDimensions(sw, sh);
+
+		// Sample the position from the texture representation
+		// of the coordinates along the spline
+		float2 pixel = float2(random() * sw, random() * sh);
+		particle.position = SplineSampler[pixel].rgb;
+
+		// To determine an initial velocity at each point,
+		// we need to sample the previous pixel and get a
+		// velocity vector between the two
+		float2 prev = float2(pixel.x - 1, pixel.y);
+		if (prev.x < 0) { // wrap
+			prev = float2(width - 1, pixel.y - 1);
+		}
+
+		// Initial velocity is the normal direction between two points on the spline
+		particle.velocity = normalize(particle.position - SplineSampler[prev].rgb);
+	}
+	else { // assume point emitter
+		particle.position = EmitterPosition;
+	}
+
+	// Initial velocity is normalized. Rescale down
+	particle.velocity *= InitialVelocityScale;
+
+	// Apply emitter velocity, with more scaling
+	particle.velocity += EmitterVelocity * EmitterVelocityScale;
+
+	// Apply a random noise factor to the initial velocity
+	particle.velocity += float3(
+		randomBetween(-1, 1),
+		randomBetween(-1, 1),
+		randomBetween(-1, 1)
+	) * InitialVelocityNoise;
+
+	// Reduce initial velocity for smaller particles (less grav pull)
+	particle.velocity *= particle.mass;
+}
+
+/**
+* Update position/velocity based on gravity and collisions with other objects
+*/
+void ApplyPhysics(inout Particle particle)
+{
+	float3 velocity = particle.velocity;
+
+	// Apply gravitational acceleration - if supplied
+	float3 acceleration = particle.mass * ConstantAcceleration;
+
+	// Small mass particles will have a very slight upward acceleration
+	// (wind, kinda) with a curl effect
+	if (particle.mass < 0.1) {
+		acceleration = float3(0, 0.001, 0);
+
+		// Get a curl at the vector field around the current position
+		acceleration += Curl(particle.position) * 0.0001;
+
+		// Rescale slightly down
+		// acceleration *= 0.1;
+	}
+
+	// Predicted position next step before collision responses
+	float3 pos = particle.position + (velocity + acceleration) * DeltaTime;
+
+	// Collision response with ground plane (fixed)
+	if (pos.y < 0.1) {
+		float3 reflection = velocity - 2 * dot(velocity, float3(0, 1, 0)) * float3(0, 1, 0);
+		acceleration = 0;
+		velocity = reflection * 0.2; // Damping Ratio
+
+		// Reduce life on collision (spark burns out)
+		particle.life -= 0.01;
+	}
+
+	particle.velocity = velocity + acceleration;
+
+	// Update position with velocity vector
+	particle.position += particle.velocity * DeltaTime;
+}
+
+// [numthreads(8,8,1)]
+[numthreads(16, 1, 1)] // TODO: Better threading split 
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+	// Seed random generator based on thread ID + current time
+	rng_state = wangHash(id.x * Time);
+
+	bool dead = ParticleBuffer[id.x].life < 0.001;
+
+	if (dead) {
+		ResetParticle(ParticleBuffer[id.x]);
+	}
+	else {
+		// Age the particle towards MaxLife
+		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
+
+		// If the particle is already born, do physics calculations
+		if (ParticleBuffer[id.x].born) {
+			ApplyPhysics(ParticleBuffer[id.x]);
+		}
+		else {
+			// If life times out, actually become a born particle.
+			// This lets us stagger initial spawning of particles
+			if (ParticleBuffer[id.x].life < 0.0) {
+				ParticleBuffer[id.x].born = 1;
+				ParticleBuffer[id.x].life = 0;
+			}
+		}
+	}
+}
