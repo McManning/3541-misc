@@ -247,11 +247,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5dc48a9f4a675244f9388ea8438efd8b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: f1043dc81857dbf48a171281e2390240, type: 3}
-  particleMaterial: {fileID: 2100000, guid: 90a15f4bd5f2f94478f26ef6f9df4d5f, type: 2}
+  computeShader: {fileID: 7200000, guid: 7f6e757070d01b045839efb4a4b05429, type: 3}
+  particleMaterial: {fileID: 2100000, guid: 9fcc6964a846475488dad74c4e7e6349, type: 2}
   emitterType: 1
-  particleCount: 2000
-  spawnDelay: 0
+  particleCount: 5000
+  initialSpawnRate:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: 0
+      value: 0.2
+      inSlope: 0.03153816
+      outSlope: 0.03153816
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 10
+      value: 1
+      inSlope: 0.24681921
+      outSlope: 0.24681921
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
   initialVelocityScale: 0
   initialVelocityNoise: 0.82
   emitterVelocityScale: 30
@@ -261,14 +278,14 @@ MonoBehaviour:
     - serializedVersion: 2
       time: 0.0030550696
       value: 0.025445558
-      inSlope: 0.98984814
-      outSlope: 0.98984814
+      inSlope: 0.5518829
+      outSlope: 0.5518829
       tangentMode: 0
     - serializedVersion: 2
       time: 1
       value: 1
-      inSlope: 1.4420289
-      outSlope: 1.4420289
+      inSlope: 1.8152056
+      outSlope: 1.8152056
       tangentMode: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
@@ -278,13 +295,13 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 2
       time: -0.000053173862
-      value: 1.5070385
+      value: 3
       inSlope: 0
       outSlope: 0
       tangentMode: 0
     - serializedVersion: 2
       time: 0.9976196
-      value: 1.3982183
+      value: 2
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -389,7 +406,7 @@ MeshRenderer:
   m_LightProbeUsage: 1
   m_ReflectionProbeUsage: 1
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: b9e10aca6274e8a4ba44d494404e4716, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -485,11 +502,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5dc48a9f4a675244f9388ea8438efd8b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: 7f6e757070d01b045839efb4a4b05429, type: 3}
-  particleMaterial: {fileID: 2100000, guid: 9fcc6964a846475488dad74c4e7e6349, type: 2}
+  computeShader: {fileID: 7200000, guid: f1043dc81857dbf48a171281e2390240, type: 3}
+  particleMaterial: {fileID: 2100000, guid: 90a15f4bd5f2f94478f26ef6f9df4d5f, type: 2}
   emitterType: 2
-  particleCount: 10000
-  spawnDelay: 0
+  particleCount: 6000
+  initialSpawnRate:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: 0
+      value: 0
+      inSlope: 0.01645472
+      outSlope: 0.01645472
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 10.011719
+      value: 1
+      inSlope: 0.2673793
+      outSlope: 0.2673793
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
   initialVelocityScale: 3.36
   initialVelocityNoise: 0.77
   emitterVelocityScale: 0
@@ -515,21 +549,21 @@ MonoBehaviour:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 2
-      time: 0.0025923639
-      value: 0.9240278
+      time: 0.0073325727
+      value: 0.88921523
       inSlope: 0
       outSlope: 0
       tangentMode: 0
     - serializedVersion: 2
-      time: 0.96624386
-      value: 0.43937728
+      time: 0.97098404
+      value: 0.4045647
       inSlope: 0
       outSlope: 0
       tangentMode: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 0
-  constantAcceleration: {x: 0, y: -0.1, z: 0}
+  constantAcceleration: {x: 0, y: -0.15, z: 0}
   curlFactor: 10
   noiseScale: 20
 --- !u!114 &2056617097
@@ -614,7 +648,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.1937716, g: 0.2785467, b: 0.41176468, a: 0}
+  m_BackGroundColor: {r: 0.09558821, g: 0.081986755, b: 0.052714083, a: 0}
   m_NormalizedViewPortRect:
     serializedVersion: 2
     x: 0
