@@ -15,6 +15,7 @@ float3 EmitterPosition; // Unused - we just spawn in the box
 float3 EmitterVelocity;
 float3 EmitterBoxMin;
 float3 EmitterBoxMax;
+float EmitterInitialSpawnDuration;
 
 // Texture containing multiple curve stop points
 Texture2D<float4> CurvesSampler;
@@ -23,7 +24,6 @@ Texture2D<float4> CurvesSampler;
 // (if EmitterType == 2)
 Texture2D<float4> SplineSampler;
 
-float SpawnDelay;
 float InitialVelocityScale;
 float InitialVelocityNoise;
 float EmitterVelocityScale;
@@ -213,26 +213,39 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	// Seed random generator based on thread ID + current time
 	rng_state = wangHash(id.x * Time);
 
-	bool dead = ParticleBuffer[id.x].life < 0.001;
+	// Initial state - "spawn" but keep unborn until
+	// the first death. This let's us stagger initial particle
+	// spawns to match that of the expected staggering
+	/*if (!ParticleBuffer[id.x].born && ParticleBuffer[id.x].life < 0.001) {
+		ResetParticle(ParticleBuffer[id.x]);
+		ParticleBuffer[id.x].born = 0;
+	}*/
 
-	if (dead) {
+	uint width, height;
+	CurvesSampler.GetDimensions(width, height);
+	uint max = width * height;
+
+	// B channel - spawn rate of particles per second
+	uint index = clamp(Time / EmitterInitialSpawnDuration * max, 0, max - 1);
+	float2 p = float2(index % 32, index / 32);
+
+	uint limit = CurvesSampler[p].b * ParticleCount;
+
+	// Prevent particles over the limit from spawning
+	if (id.x > limit) {
+		ParticleBuffer[id.x].born = 0;
+		return;
+	}
+
+	// Age the particle towards 0
+	ParticleBuffer[id.x].life -= DeltaTime;
+
+	if (ParticleBuffer[id.x].life < 0.001) {
 		ResetParticle(ParticleBuffer[id.x]);
 	}
-	else {
-		// Age the particle towards MaxLife
-		ParticleBuffer[id.x].life = ParticleBuffer[id.x].life - DeltaTime;
 
-		// If the particle is already born, do physics calculations
-		if (ParticleBuffer[id.x].born) {
-			ApplyPhysics(ParticleBuffer[id.x]);
-		}
-		else {
-			// If life times out, actually become a born particle.
-			// This lets us stagger initial spawning of particles
-			if (ParticleBuffer[id.x].life < 0.0) {
-				ParticleBuffer[id.x].born = 1;
-				ParticleBuffer[id.x].life = 0;
-			}
-		}
+	// If the particle is already born, do physics calculations
+	if (ParticleBuffer[id.x].born) {
+		ApplyPhysics(ParticleBuffer[id.x]);
 	}
 }

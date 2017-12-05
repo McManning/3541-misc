@@ -44,10 +44,11 @@ public class SparkParticleEmitter : MonoBehaviour
     public int particleCount;
 
     /// <summary>
-    /// Delay between spawning new particles
+    /// Fixed life for particles
     /// </summary>
-    public float spawnDelay;
-
+    [Tooltip("Percentage of particles (x axis) to spawn per second (y axis)")]
+    public AnimationCurve initialSpawnRate;
+    
     /// <summary>
     /// Scaling factor for the initial velocity of particles
     /// </summary>
@@ -63,7 +64,7 @@ public class SparkParticleEmitter : MonoBehaviour
     /// factors into initial velocity of new particles
     /// </summary>
     public float emitterVelocityScale;
-
+    
     [Header("Particle Settings")]
 
     /// <summary>
@@ -169,20 +170,20 @@ public class SparkParticleEmitter : MonoBehaviour
         // Physics simulation timing
         computeShader.SetFloat("DeltaTime", Time.deltaTime);
         computeShader.SetFloat("Time", Time.realtimeSinceStartup);
-
+        
         // Emitter properties
         computeShader.SetInt("ParticleCount", particleCount);
         computeShader.SetInt("EmitterType", (int)emitterType);
         computeShader.SetVector("EmitterPosition", emitterPosition);
         computeShader.SetVector("EmitterVelocity", emitterVelocity);
-
+        computeShader.SetFloat("EmitterInitialSpawnDuration", initialSpawnRate.keys[initialSpawnRate.length - 1].time);
+        
         if (emitterType == EmitterType.Box)
         {
             computeShader.SetVector("EmitterBoxMin", bounds.bounds.min);
             computeShader.SetVector("EmitterBoxMax", bounds.bounds.max);
         }
         
-        computeShader.SetFloat("SpawnDelay", spawnDelay);
         computeShader.SetFloat("InitialVelocityScale", initialVelocityScale);
         computeShader.SetFloat("InitialVelocityNoise", initialVelocityNoise);
         computeShader.SetFloat("EmitterVelocityScale", emitterVelocityScale);
@@ -194,14 +195,14 @@ public class SparkParticleEmitter : MonoBehaviour
 
         // Workaround for the above. I'm packing animation curves into textures
         UpdateSampleTextures();
-        
+
         // Physics properties
         computeShader.SetVector("ConstantAcceleration", constantAcceleration);
         computeShader.SetFloat("CurlFactor", curlFactor);
         computeShader.SetFloat("NoiseScale", noiseScale);
     }
 
-    void Awake()
+    void Start()
     {
         bounds = GetComponent<BoxCollider>();
 
@@ -282,53 +283,14 @@ public class SparkParticleEmitter : MonoBehaviour
 
         // Graphics.DrawProcedural(MeshTopology.Triangles, particleBuffer.count * 3, 1);
     }
-
-    /// <summary>
-    /// Generates an array CURVE_SAMPLE_RATE samples from an AnimationCurve
-    /// </summary>
-    /// <returns></returns>
-    private float[] GetAnimationCurveSamples(AnimationCurve curve)
-    {
-        var samples = new float[CURVE_SAMPLE_RATE];
-        for (int i = 0; i < CURVE_SAMPLE_RATE; i++)
-        {
-            samples[i] = curve.Evaluate(
-                0.5f
-            );
-
-            Debug.Log(samples[i]);
-        }
-        
-        return samples;
-    }
-
-    /// <summary>
-    /// Convert an animation curve to a texture for use on the GPU
-    /// </summary>
-    /// <param name="curve"></param>
-    /// <returns></returns>
-    private Texture2D GetAnimationCurveTexture(AnimationCurve curve)
-    {
-        var texture = new Texture2D(32, 32);
-
-        var pixels = new Color[32];
-        for (int i = 0; i < 32; i++)
-        {
-            pixels[i] = new Color(curve.Evaluate(
-                i / CURVE_SAMPLE_RATE
-            ), 0, 0);
-        }
-
-        texture.SetPixels(pixels);
-        return texture;
-    }
     
     private void UpdateSampleTextures()
     {
         BezierSpline spline = GetComponent<BezierSpline>();
         var splinePixels = new Color[1024];
         var curvePixels = new Color[1024];
-
+        var initialSpawnDuration = initialSpawnRate.keys[initialSpawnRate.length - 1].time;
+        
         for (int i = 0; i < 1024; i++)
         {
             // R channel - mass distribution
@@ -337,6 +299,9 @@ public class SparkParticleEmitter : MonoBehaviour
             // G channel - TTL distribution
             float g = TTL.Evaluate(i / 1024.0f);
 
+            // B channel - Spawn rate distribution
+            float b = initialSpawnRate.Evaluate(i / 1024.0f * initialSpawnDuration);
+            
             // If we have a spline emitter, set RGB channels 
             // to a point sampled on the spline
             if (emitterType == EmitterType.Spline)
@@ -345,9 +310,9 @@ public class SparkParticleEmitter : MonoBehaviour
                 splinePixels[i] = new Color(p.x, p.y, p.z);
             }
 
-            curvePixels[i] = new Color(r, g, 0, 1);
+            curvePixels[i] = new Color(r, g, b, 1);
         }
-
+        
         // Set pixels and reupload to the GPU
         splineSamplesTexture.SetPixels(splinePixels);
         splineSamplesTexture.Apply();
