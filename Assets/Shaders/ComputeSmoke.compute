@@ -7,6 +7,7 @@
 #pragma kernel Diffusion
 #pragma kernel Pressure
 #pragma kernel Gradient
+#pragma kernel TemperatureAdvection
 
 #define THREADS_X 8
 #define THREADS_Y 8
@@ -33,6 +34,9 @@ RWTexture2D<float> _DensityOut;
 
 RWTexture2D<float> _Pressure;
 RWTexture2D<float> _PressureOut;
+
+RWTexture2D<float> _Temperature;
+RWTexture2D<float> _TemperatureOut;
 
 float2 ThreadToCell(uint3 id)
 {
@@ -93,9 +97,10 @@ void HitTest(uint3 id : SV_DispatchThreadID)
 	}*/
 
 	// Outward impulse
-	if (distance < 0.2) {
-		float a = 0.2 - distance;
-		_Density[id.xy] = saturate(a * 2.0);
+	if (distance < 0.05) {
+		float a = 0.05 - distance;
+		_Density[id.xy] = saturate(_Density[id.xy] + a);
+		_Velocity[id.xy] = float4(0, 0.01, 0, 1);
 		// _Velocity[id.xy] = float4(a, a, a, 1);
 	}
 }
@@ -155,8 +160,8 @@ void Diffusion(uint3 id : SV_DispatchThreadID)
     float R = _Density[cell + float2(1, 0)];
     float D = _Density[cell + float2(0, -1)];
     float U = _Density[cell + float2(0, 1)];
-    // float3 B = JacobianX[cell + float3(0, 0, -1)];
-    // float3 F = JacobianX[cell + float3(0, 0, 1)];
+    // float3 B = _Density[cell + float3(0, 0, -1)];
+    // float3 F = _Density[cell + float3(0, 0, 1)];
 
     float C = _Density[cell];
 
@@ -165,7 +170,8 @@ void Diffusion(uint3 id : SV_DispatchThreadID)
     float beta = 4.0 + alpha;
     float result = (L + R + D + U + alpha * C) / beta;
 
-    _DensityOut[cell] = result;
+	// While writing out density, also drop density over time
+    _DensityOut[cell] = result * 0.99;
 }
 
 float Divergence(float2 cell)
@@ -193,8 +199,8 @@ void Pressure(uint3 id : SV_DispatchThreadID)
     float R = _Pressure[cell + float2(1, 0)].x;
     float D = _Pressure[cell + float2(0, -1)].x;
     float U = _Pressure[cell + float2(0, 1)].x;
-    // float3 B = JacobianX[cell + float3(0, 0, -1)];
-    // float3 F = JacobianX[cell + float3(0, 0, 1)];
+    // float3 B = _Pressure[cell + float3(0, 0, -1)];
+    // float3 F = _Pressure[cell + float3(0, 0, 1)];
 
     // TODO: Recheck. This doesn't seem right
     float C = Divergence(cell);
@@ -226,22 +232,15 @@ void Gradient(uint3 id : SV_DispatchThreadID)
     _VelocityOut[cell] = float4(vel, 0, 1);
 }
 
-/* Relevant for buoyancy later
-
-RWTexture2D<float> _Temperature;
-RWTexture2D<float> _TemperatureOut;
-
-void TemperatureAdvection(float2 cell)
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void TemperatureAdvection(uint3 id : SV_DispatchThreadID)
 {
-float v = _Velocity[cell].x;
-float2 newCell = cell - v * _DeltaTime;
+	float2 cell = ThreadToCell(id);
 
-float result = _Temperature[newCell];
+	float2 v = _Velocity[cell].xy;
+	float2 newCell = cell - v * _DeltaTime;
 
-_TemperatureOut[cell] = result;
+	float result = _Temperature[newCell];
+
+	_TemperatureOut[cell] = result;
 }
-
-// Swap(_Temperature, _TemperatureOut)
-
-*/
-

@@ -11,6 +11,16 @@ public class SmokeEmitter : MonoBehaviour
         new Vector2(0, 1)
     };
 
+    public enum DebugTexture
+    {
+        Velocity = 0,
+        Density = 1,
+        Pressure = 2,
+        Temperature = 3
+    }
+
+    public DebugTexture activeTexture = DebugTexture.Density;
+
     // Static since this is always the same, regardless of instance
     static float[] frustumRays = new float[16];
 
@@ -36,11 +46,15 @@ public class SmokeEmitter : MonoBehaviour
     private RenderTexture densityOutTex;
     private RenderTexture pressureTex;
     private RenderTexture pressureOutTex;
+    private RenderTexture temperatureTex;
+    private RenderTexture temperatureOutTex;
 
     private int threadGroupsX;
     private int threadGroupsY;
     private int threadGroupsZ;
-    
+
+    private DebugTexture lastActiveTexture;
+
     void Start()
     {
         threadGroupsX = scale / 8;
@@ -49,13 +63,10 @@ public class SmokeEmitter : MonoBehaviour
 
         CreateTextures();
 
-        Material mat = GetComponent<MeshRenderer>().material;
-
-        // For debugging, set diffuse to our velocity texture
-        mat.SetTexture("_MainTex", densityTex);
-        
         UpdateComputeShaderSettings();
         // ComputeTestWrite();
+
+        UpdateActiveTexture();
     }
 
     void OnDestroy()
@@ -65,12 +76,14 @@ public class SmokeEmitter : MonoBehaviour
 
     private void CreateTextures()
     {
-        velocityTex = CreateTexture(RenderTextureFormat.ARGB32);
-        velocityOutTex = CreateTexture(RenderTextureFormat.ARGB32);
+        velocityTex = CreateTexture(RenderTextureFormat.ARGBFloat);
+        velocityOutTex = CreateTexture(RenderTextureFormat.ARGBFloat);
         densityTex = CreateTexture(RenderTextureFormat.RFloat);
         densityOutTex = CreateTexture(RenderTextureFormat.RFloat);
         pressureTex = CreateTexture(RenderTextureFormat.RFloat);
         pressureOutTex = CreateTexture(RenderTextureFormat.RFloat);
+        temperatureTex = CreateTexture(RenderTextureFormat.RFloat);
+        temperatureOutTex = CreateTexture(RenderTextureFormat.RFloat);
     }
     
     private void ReleaseTextures()
@@ -81,6 +94,34 @@ public class SmokeEmitter : MonoBehaviour
         densityOutTex.Release();
         pressureTex.Release();
         pressureOutTex.Release();
+        temperatureTex.Release();
+        temperatureOutTex.Release();
+    }
+
+    private void UpdateActiveTexture()
+    {
+
+        Material mat = GetComponent<MeshRenderer>().material;
+
+        RenderTexture texture;
+        switch (activeTexture)
+        {
+            case DebugTexture.Velocity:
+                texture = velocityTex;
+                break;
+            case DebugTexture.Pressure:
+                texture = pressureTex;
+                break;
+            case DebugTexture.Temperature:
+                texture = temperatureTex;
+                break;
+            default: // Density
+                texture = densityTex;
+                break;
+        }
+        
+        mat.SetTexture("_MainTex", texture);
+        mat.SetInt("_ActiveTexture", (int)activeTexture);
     }
 
     private RenderTexture CreateTexture(RenderTextureFormat format)
@@ -105,6 +146,12 @@ public class SmokeEmitter : MonoBehaviour
     {
         UpdateComputeShaderSettings();
         
+        if (activeTexture != lastActiveTexture)
+        {
+            lastActiveTexture = activeTexture;
+            UpdateActiveTexture();
+        }
+
         if (simulate)
         {
             ComputeVelocityAdvection();
@@ -119,6 +166,9 @@ public class SmokeEmitter : MonoBehaviour
             Swap(ref densityTex, ref densityOutTex);
 
             Diffusion();
+
+            ComputeTemperatureAdvection();
+            Swap(ref temperatureTex, ref temperatureOutTex);
         }
         
         CheckForMouse();
@@ -130,7 +180,7 @@ public class SmokeEmitter : MonoBehaviour
         mousePos.z = 1.0f;
         var worldPos = Camera.main.ScreenToWorldPoint(mousePos);
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButton(0))
         {
             AddPoint(worldPos);
         }
@@ -144,6 +194,7 @@ public class SmokeEmitter : MonoBehaviour
 
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Density", densityTex);
+        compute.SetTexture(kernel, "_Temperature", temperatureTex);
         compute.SetVector("_HitPoint", point);
         
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
@@ -177,6 +228,8 @@ public class SmokeEmitter : MonoBehaviour
 
     private void Project()
     {
+        ClearTexture(pressureTex);
+
         for (int i = 0; i < jacobianIterations; i++)
         {
             ComputePressure();
@@ -260,11 +313,29 @@ public class SmokeEmitter : MonoBehaviour
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
 
+    private void ComputeTemperatureAdvection()
+    {
+        int kernel = compute.FindKernel("TemperatureAdvection");
+
+        compute.SetTexture(kernel, "_Velocity", velocityTex);
+        compute.SetTexture(kernel, "_Temperature", temperatureTex);
+        compute.SetTexture(kernel, "_TemperatureOut", temperatureOutTex);
+
+        compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
+    }
+
     private void Swap(ref RenderTexture a, ref RenderTexture b)
     {
         var c = a;
         a = b;
         b = c;
+    }
+
+    private void ClearTexture(RenderTexture texture)
+    {
+        Graphics.SetRenderTarget(texture);
+        GL.Clear(false, true, new Color(0, 0, 0, 0));
+        Graphics.SetRenderTarget(null);
     }
 
     /// <summary>
