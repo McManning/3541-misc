@@ -241,7 +241,7 @@ void Gradient(uint3 id : SV_DispatchThreadID)
 
     float2 vel = _Velocity[cell].xy;
 
-    vel = vel - 0.5 * float2(L - R, D - U);
+    vel = vel - 0.5 * float2(R - L, U - D);
 
     _VelocityOut[cell] = float4(vel, 0, 1);
 }
