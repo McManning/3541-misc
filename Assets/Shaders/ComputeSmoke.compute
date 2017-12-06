@@ -1,0 +1,247 @@
+﻿
+#pragma kernel TestWrite
+#pragma kernel HitTest
+#pragma kernel VelocityAdvection
+#pragma kernel DensityAdvection
+#pragma kernel Viscosity
+#pragma kernel Diffusion
+#pragma kernel Pressure
+#pragma kernel Gradient
+
+#define THREADS_X 8
+#define THREADS_Y 8
+#define THREADS_Z 1
+
+// Game state
+float _DeltaTime;
+float3 _CameraPosition;
+float4 _FrustumRays[4];
+
+// Configurables
+float _Scale;
+float _Viscosity;
+float _DensityDiffusion;
+
+float3 _HitPoint;
+
+// State textures
+RWTexture2D<float4> _Velocity;
+RWTexture2D<float4> _VelocityOut;
+
+RWTexture2D<float> _Density;
+RWTexture2D<float> _DensityOut;
+
+RWTexture2D<float> _Pressure;
+RWTexture2D<float> _PressureOut;
+
+float2 ThreadToCell(uint3 id)
+{
+	return id.xy;
+
+	/*
+    float width, height;
+    _Velocity.GetDimensions(width, height);
+
+    return float2(
+		id.x % width,
+		id.x / width
+    );*/
+}
+
+/*float3 ThreadTo3D(uint3 index)
+{
+    float width, height, depth;
+    _Velocity.GetDimensions(width, height, depth);
+
+    // Dunno if this is right, but I assume all dimensions
+    // are the same.. so whatev
+    float3 p = float3(
+        index.x % width,
+        (index.x / width) % depth,
+        index.x / (width * depth)
+    );
+}*/
+
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void TestWrite(uint3 id : SV_DispatchThreadID)
+{
+	float2 cell = ThreadToCell(id);
+
+	_Velocity[cell] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
+
+	/*
+	_Velocity[cell] = float4(0, 0, 0, 1);
+
+	if ((cell.x > 16 && cell.x < 20 || (cell.y > 16 && cell.y < 20)) {
+		_Velocity[cell] = float4(0, 1, 0, 1);
+	}*/
+}
+
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void HitTest(uint3 id : SV_DispatchThreadID)
+{
+	float width, height;
+	_Velocity.GetDimensions(width, height);
+
+	// Mouse hit point is in xz axis for the demo
+	float distance = length((-_HitPoint.xz + 0.5) - id.xy / width);
+
+	/*if (distance < 0.1) {
+		_Velocity[id.xy] = float4(1, 1, 1, 0);
+	}*/
+
+	// Outward impulse
+	if (distance < 0.2) {
+		float a = 0.2 - distance;
+		_Density[id.xy] = saturate(a * 2.0);
+		// _Velocity[id.xy] = float4(a, a, a, 1);
+	}
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void VelocityAdvection(uint3 id : SV_DispatchThreadID)
+{
+	float2 cell = ThreadToCell(id);
+
+    float2 v = _Velocity[cell].xy;
+    float2 newCell = cell - v * _DeltaTime;
+
+    float2 result = _Velocity[newCell].xy;
+
+    _VelocityOut[cell] = float4(result, 0, 1);
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void Viscosity(uint3 id : SV_DispatchThreadID)
+{
+    float2 cell = ThreadToCell(id);
+
+    float2 L = _Velocity[cell + float2(-1, 0)].xy;
+    float2 R = _Velocity[cell + float2(1, 0)].xy;
+    float2 D = _Velocity[cell + float2(0, -1)].xy;
+    float2 U = _Velocity[cell + float2(0, 1)].xy;
+
+    float2 C = _Velocity[cell].xy;
+
+    // Jacobian 2D
+    float alpha = 1.0 / _DeltaTime * _Viscosity;
+    float beta = 4.0 + alpha;
+    float2 result = (L + R + D + U + alpha * C) / beta;
+
+    _VelocityOut[cell] = float4(result, 0, 1);
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void DensityAdvection(uint3 id : SV_DispatchThreadID)
+{
+    float2 cell = ThreadToCell(id);
+
+    float2 v = _Velocity[cell].xy;
+    float2 newCell = cell - v * _DeltaTime;
+
+    float result = _Density[newCell];
+
+    _DensityOut[cell] = result;
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void Diffusion(uint3 id : SV_DispatchThreadID)
+{
+    float2 cell = ThreadToCell(id);
+
+    float L = _Density[cell + float2(-1, 0)];
+    float R = _Density[cell + float2(1, 0)];
+    float D = _Density[cell + float2(0, -1)];
+    float U = _Density[cell + float2(0, 1)];
+    // float3 B = JacobianX[cell + float3(0, 0, -1)];
+    // float3 F = JacobianX[cell + float3(0, 0, 1)];
+
+    float C = _Density[cell];
+
+    // Jacobian 1D 
+    float alpha = 1.0 / _DeltaTime * _DensityDiffusion;
+    float beta = 4.0 + alpha;
+    float result = (L + R + D + U + alpha * C) / beta;
+
+    _DensityOut[cell] = result;
+}
+
+float Divergence(float2 cell)
+{
+    // Get velocity values from neighboring cells
+    float4 L = _Velocity[cell + float2(-1, 0)];
+    float4 R = _Velocity[cell + float2(1, 0)];
+    float4 D = _Velocity[cell + float2(0, -1)];
+    float4 U = _Velocity[cell + float2(0, 1)];
+    // float4 B = _Velocity[cell + float3(0, 0, -1)];
+    // float4 F = _Velocity[cell + float3(0, 0, 1)];
+
+    // Compute diverge using central differences
+    float divergence = 0.5 * ((R.x - L.x) + (U.y - D.y)); // +(F.z - B.z));
+
+    return divergence;
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void Pressure(uint3 id : SV_DispatchThreadID)
+{
+    float2 cell = ThreadToCell(id);
+
+    float L = _Pressure[cell + float2(-1, 0)].x;
+    float R = _Pressure[cell + float2(1, 0)].x;
+    float D = _Pressure[cell + float2(0, -1)].x;
+    float U = _Pressure[cell + float2(0, 1)].x;
+    // float3 B = JacobianX[cell + float3(0, 0, -1)];
+    // float3 F = JacobianX[cell + float3(0, 0, 1)];
+
+    // TODO: Recheck. This doesn't seem right
+    float C = Divergence(cell);
+
+    // Compute new pressure for our cell (1D Jacobian)
+    float alpha = -1;
+    float beta = 4;
+    float pressure = (L + R + D + U + alpha * C) / beta;
+
+    _PressureOut[cell] = pressure;
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void Gradient(uint3 id : SV_DispatchThreadID)
+{
+    float2 cell = ThreadToCell(id);
+
+    float L = _Pressure[cell + float2(-1, 0)];
+    float R = _Pressure[cell + float2(1, 0)];
+    float D = _Pressure[cell + float2(0, -1)];
+    float U = _Pressure[cell + float2(0, 1)];
+
+    float C = _Pressure[cell];
+
+    float2 vel = _Velocity[cell].xy;
+
+    vel = vel - 0.5 * float2(L - R, U - D);
+
+    _VelocityOut[cell] = float4(vel, 0, 1);
+}
+
+/* Relevant for buoyancy later
+
+RWTexture2D<float> _Temperature;
+RWTexture2D<float> _TemperatureOut;
+
+void TemperatureAdvection(float2 cell)
+{
+float v = _Velocity[cell].x;
+float2 newCell = cell - v * _DeltaTime;
+
+float result = _Temperature[newCell];
+
+_TemperatureOut[cell] = result;
+}
+
+// Swap(_Temperature, _TemperatureOut)
+
+*/
+
