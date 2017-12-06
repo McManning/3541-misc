@@ -16,7 +16,8 @@ public class SmokeEmitter : MonoBehaviour
         Velocity = 0,
         Density = 1,
         Pressure = 2,
-        Temperature = 3
+        Temperature = 3,
+        Solids = 4
     }
 
     public DebugTexture activeTexture = DebugTexture.Density;
@@ -48,6 +49,8 @@ public class SmokeEmitter : MonoBehaviour
     private RenderTexture pressureOutTex;
     private RenderTexture temperatureTex;
     private RenderTexture temperatureOutTex;
+    private RenderTexture solidsTex;
+    private RenderTexture solidsOutTex;
 
     private int threadGroupsX;
     private int threadGroupsY;
@@ -64,7 +67,7 @@ public class SmokeEmitter : MonoBehaviour
         CreateTextures();
 
         UpdateComputeShaderSettings();
-        // ComputeTestWrite();
+        ComputeTestWrite();
 
         UpdateActiveTexture();
     }
@@ -84,6 +87,8 @@ public class SmokeEmitter : MonoBehaviour
         pressureOutTex = CreateTexture(RenderTextureFormat.RFloat);
         temperatureTex = CreateTexture(RenderTextureFormat.RFloat);
         temperatureOutTex = CreateTexture(RenderTextureFormat.RFloat);
+        solidsTex = CreateTexture(RenderTextureFormat.RFloat);
+        solidsOutTex = CreateTexture(RenderTextureFormat.RFloat);
     }
     
     private void ReleaseTextures()
@@ -96,6 +101,8 @@ public class SmokeEmitter : MonoBehaviour
         pressureOutTex.Release();
         temperatureTex.Release();
         temperatureOutTex.Release();
+        solidsTex.Release();
+        solidsOutTex.Release();
     }
 
     private void UpdateActiveTexture()
@@ -114,6 +121,9 @@ public class SmokeEmitter : MonoBehaviour
                 break;
             case DebugTexture.Temperature:
                 texture = temperatureTex;
+                break;
+            case DebugTexture.Solids:
+                texture = solidsTex;
                 break;
             default: // Density
                 texture = densityTex;
@@ -244,6 +254,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("TestWrite");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
 
@@ -254,6 +265,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("VelocityAdvection");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
 
@@ -264,6 +276,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("DensityAdvection");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Density", densityTex);
         compute.SetTexture(kernel, "_DensityOut", densityOutTex);
@@ -275,6 +288,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("Viscosity");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
 
@@ -285,6 +299,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("Diffusion");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Density", densityTex);
         compute.SetTexture(kernel, "_DensityOut", densityOutTex);
 
@@ -294,7 +309,8 @@ public class SmokeEmitter : MonoBehaviour
     private void ComputePressure()
     {
         int kernel = compute.FindKernel("Pressure");
-        
+
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Pressure", pressureTex);
         compute.SetTexture(kernel, "_PressureOut", pressureOutTex);
@@ -306,6 +322,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("Gradient");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Pressure", pressureTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
@@ -317,6 +334,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         int kernel = compute.FindKernel("TemperatureAdvection");
 
+        compute.SetTexture(kernel, "_Solids", solidsTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Temperature", temperatureTex);
         compute.SetTexture(kernel, "_TemperatureOut", temperatureOutTex);

@@ -38,6 +38,9 @@ RWTexture2D<float> _PressureOut;
 RWTexture2D<float> _Temperature;
 RWTexture2D<float> _TemperatureOut;
 
+RWTexture2D<float> _Solids;
+RWTexture2D<float> _SolidsOut;
+
 float2 ThreadToCell(uint3 id)
 {
 	return id.xy;
@@ -72,7 +75,10 @@ void TestWrite(uint3 id : SV_DispatchThreadID)
 {
 	float2 cell = ThreadToCell(id);
 
-	_Velocity[cell] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
+	float width, height;
+	_Velocity.GetDimensions(width, height);
+
+	//_Velocity[cell] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
 
 	/*
 	_Velocity[cell] = float4(0, 0, 0, 1);
@@ -80,6 +86,14 @@ void TestWrite(uint3 id : SV_DispatchThreadID)
 	if ((cell.x > 16 && cell.x < 20 || (cell.y > 16 && cell.y < 20)) {
 		_Velocity[cell] = float4(0, 1, 0, 1);
 	}*/
+
+	// Write solid border to prevent texture looping
+	if (id.x < 1 || id.x > width - 2 || id.y < 2 || id.y > height - 2) {
+		_Solids[cell] = 1;
+	}
+	else {
+		_Solids[cell] = 0;
+	}
 }
 
 
@@ -195,10 +209,10 @@ void Pressure(uint3 id : SV_DispatchThreadID)
 {
     float2 cell = ThreadToCell(id);
 
-    float L = _Pressure[cell + float2(-1, 0)].x;
-    float R = _Pressure[cell + float2(1, 0)].x;
-    float D = _Pressure[cell + float2(0, -1)].x;
-    float U = _Pressure[cell + float2(0, 1)].x;
+    float L = _Pressure[cell + float2(-1, 0)];
+    float R = _Pressure[cell + float2(1, 0)];
+    float D = _Pressure[cell + float2(0, -1)];
+    float U = _Pressure[cell + float2(0, 1)];
     // float3 B = _Pressure[cell + float3(0, 0, -1)];
     // float3 F = _Pressure[cell + float3(0, 0, 1)];
 
@@ -227,7 +241,7 @@ void Gradient(uint3 id : SV_DispatchThreadID)
 
     float2 vel = _Velocity[cell].xy;
 
-    vel = vel - 0.5 * float2(L - R, U - D);
+    vel = vel - 0.5 * float2(L - R, D - U);
 
     _VelocityOut[cell] = float4(vel, 0, 1);
 }
