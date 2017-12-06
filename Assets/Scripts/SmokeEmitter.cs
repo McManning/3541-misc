@@ -37,6 +37,8 @@ public class SmokeEmitter : MonoBehaviour
     
     public int scale = 32;
 
+    public float timeScale;
+
     public bool simulate;
 
     // private Texture3D texture;
@@ -141,6 +143,7 @@ public class SmokeEmitter : MonoBehaviour
             enableRandomWrite = true,
             format = format,
             filterMode = FilterMode.Point
+            // wrapMode = TextureWrapMode.Clamp
         };
 
         texture.Create();
@@ -212,7 +215,7 @@ public class SmokeEmitter : MonoBehaviour
 
     private void UpdateComputeShaderSettings()
     {
-        compute.SetFloat("_DeltaTime", Time.deltaTime);
+        compute.SetFloat("_DeltaTime", Time.deltaTime * timeScale);
         compute.SetFloat("_Scale", scale);
         compute.SetFloat("_Viscosity", viscosity);
         compute.SetFloat("_DensityDiffusion", diffusion);
