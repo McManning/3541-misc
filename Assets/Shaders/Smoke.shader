@@ -46,15 +46,44 @@
 			{
 				fixed4 col = tex2D(_MainTex, i.uv);
 				
-				// Discrete value (red channel)
-				if (_ActiveTexture > 0) {
+				// Density
+				if (_ActiveTexture == 1) {
 					float d = saturate(col.r * 3.0);
 					return fixed4(d, d, d, 1);
 				}
+				else if (_ActiveTexture == 2) {
+					// Pressure
+					return fixed4(0, col.r * 2.0, 0, 1);
+				}
+				else if (_ActiveTexture == 3) {
+					// Temperature
+					col.g = 0;
+					col.b = 0;
 
-				// Velocity. Note negatives won't render well,
-				// but that's fine...
-				return col;
+					// Super hot
+					if (col.r > 1.0) {
+						col.r = saturate(col.r);
+					}
+					else if (col.r < 0.5) { // Cold
+						col.b = col.r;
+						col.r = 0;
+					}
+					else { // medium (orange)
+						col.r = saturate(col.r);
+						col.g = 0.5;
+					}
+
+					return col;
+				}
+				else if (_ActiveTexture == 4) {
+					// Solids
+					float r = col.r;
+					return fixed4(r, r, r, 1);
+				}
+
+				// Velocity. Offset upward to render negatives .. kinda
+				float4 v = saturate(col + 0.5);
+				return fixed4(v.x, v.y, 0, 1);
 			}
 			ENDCG
 		}

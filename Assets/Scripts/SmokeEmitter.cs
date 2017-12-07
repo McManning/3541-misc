@@ -18,7 +18,7 @@ public class SmokeEmitter : MonoBehaviour
         Pressure = 2,
         Temperature = 3,
         Solids = 4
-    }
+    };
 
     public DebugTexture activeTexture = DebugTexture.Density;
 
@@ -29,17 +29,23 @@ public class SmokeEmitter : MonoBehaviour
 
     public ComputeShader compute;
 
-    public int jacobianIterations = 1;
+    public int jacobiIterations = 1;
 
     public float diffusion = 0.1f;
     public float viscosity = 0.001f;
-    public float buoyancy = 5.0f;
-    
+    public float ambientTemperature = 0;
+    public float buoyancySigma;
+    public float buoyancyKappa;
+    public float vorticityEpsilon;
+    public float emitterTemperature;
+
     public int scale = 32;
 
     public float timeScale;
 
     public bool simulate;
+
+    public float emitterRadius;
 
     // private Texture3D texture;
 
@@ -109,7 +115,6 @@ public class SmokeEmitter : MonoBehaviour
 
     private void UpdateActiveTexture()
     {
-
         Material mat = GetComponent<MeshRenderer>().material;
 
         RenderTexture texture;
@@ -142,8 +147,8 @@ public class SmokeEmitter : MonoBehaviour
         {
             enableRandomWrite = true,
             format = format,
-            filterMode = FilterMode.Point
-            // wrapMode = TextureWrapMode.Clamp
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
         };
 
         texture.Create();
@@ -168,9 +173,8 @@ public class SmokeEmitter : MonoBehaviour
         if (simulate)
         {
             ComputeVelocityAdvection();
-
             Swap(ref velocityTex, ref velocityOutTex);
-
+            
             Project();
 
             Viscosity();
@@ -182,6 +186,9 @@ public class SmokeEmitter : MonoBehaviour
 
             ComputeTemperatureAdvection();
             Swap(ref temperatureTex, ref temperatureOutTex);
+
+            ComputeForces();
+            Swap(ref velocityTex, ref velocityOutTex);
         }
         
         CheckForMouse();
@@ -201,14 +208,14 @@ public class SmokeEmitter : MonoBehaviour
     
     private void AddPoint(Vector3 point)
     {
-        int kernel = compute.FindKernel("HitTest");
-
-        Debug.Log(point);
-
+        int kernel = compute.FindKernel("Impulse");
+        
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Density", densityTex);
         compute.SetTexture(kernel, "_Temperature", temperatureTex);
-        compute.SetVector("_HitPoint", point);
+        compute.SetVector("_Emitter", point);
+        compute.SetFloat("_EmitterRadius", emitterRadius);
+        compute.SetFloat("_EmitterTemperature", emitterTemperature);
         
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
@@ -216,14 +223,21 @@ public class SmokeEmitter : MonoBehaviour
     private void UpdateComputeShaderSettings()
     {
         compute.SetFloat("_DeltaTime", Time.deltaTime * timeScale);
+
         compute.SetFloat("_Scale", scale);
+        
+        compute.SetVector("_UpVector", Vector2.up);
         compute.SetFloat("_Viscosity", viscosity);
         compute.SetFloat("_DensityDiffusion", diffusion);
+        compute.SetFloat("_AmbientTemperature", ambientTemperature);
+        compute.SetFloat("_BuoyancyKappa", buoyancyKappa);
+        compute.SetFloat("_BuoyancySigma", buoyancySigma);
+        compute.SetFloat("_VorticityEpsilon", vorticityEpsilon);
     }
     
     private void Diffusion()
     {
-        for (int i = 0; i < jacobianIterations; i++)
+        for (int i = 0; i < jacobiIterations; i++)
         {
             ComputeDiffusion();
             Swap(ref densityTex, ref densityOutTex);
@@ -232,7 +246,7 @@ public class SmokeEmitter : MonoBehaviour
 
     private void Viscosity()
     {
-        for (int i = 0; i < jacobianIterations; i++)
+        for (int i = 0; i < jacobiIterations; i++)
         {
             ComputeViscosity();
             Swap(ref velocityTex, ref velocityOutTex);
@@ -243,7 +257,7 @@ public class SmokeEmitter : MonoBehaviour
     {
         ClearTexture(pressureTex);
 
-        for (int i = 0; i < jacobianIterations; i++)
+        for (int i = 0; i < jacobiIterations; i++)
         {
             ComputePressure();
             Swap(ref pressureTex, ref pressureOutTex);
@@ -345,6 +359,19 @@ public class SmokeEmitter : MonoBehaviour
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
 
+    private void ComputeForces()
+    {
+        int kernel = compute.FindKernel("Forces");
+
+        compute.SetTexture(kernel, "_Solids", solidsTex);
+        compute.SetTexture(kernel, "_Velocity", velocityTex);
+        compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
+        compute.SetTexture(kernel, "_Temperature", temperatureTex);
+        compute.SetTexture(kernel, "_Density", densityTex);
+        
+        compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
+    }
+    
     private void Swap(ref RenderTexture a, ref RenderTexture b)
     {
         var c = a;

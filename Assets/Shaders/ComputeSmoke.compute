@@ -1,6 +1,37 @@
-﻿
+﻿/*
+	Fluid Dynamics Compute Shader
+
+	Collection of kernels for running steps of fluid dynamic particles.
+	Uses a collection of textures to represent the various properties
+	of particles, and a grid-based method for physics computations.
+
+	Currently just does 2D - will add a dimension soon(tm)
+
+	Complete:
+		* Velocity vector field advection
+		* Density/temperature advection
+		* Viscosity affector for velocities
+		* Diffusion affector for densities
+		* Projection (divergence + pressure effect on the velocity field)
+		* Emitter of new density/temperature regions
+
+	Work in Progress:
+		* Buoyant force on velocity
+
+	TODO:
+		* Extension to 3D
+		* Vortex force on velocity (curl on velocity, basically)
+		* Editable gradient shader for density
+		* Volumetric rendering (view projection + marching cubes, probably)
+		* Obstacles (voxelization of meshes)
+		* Curve emitters
+
+	References:
+		http://developer.download.nvidia.com/books/HTML/gpugems/gpugems_ch38.html
+		https://web.stanford.edu/class/cs237d/smoke.pdf
+*/
 #pragma kernel TestWrite
-#pragma kernel HitTest
+#pragma kernel Impulse
 #pragma kernel VelocityAdvection
 #pragma kernel DensityAdvection
 #pragma kernel Viscosity
@@ -8,6 +39,7 @@
 #pragma kernel Pressure
 #pragma kernel Gradient
 #pragma kernel TemperatureAdvection
+#pragma kernel Forces
 
 #define THREADS_X 8
 #define THREADS_Y 8
@@ -20,10 +52,17 @@ float4 _FrustumRays[4];
 
 // Configurables
 float _Scale;
+float2 _UpVector;
 float _Viscosity;
 float _DensityDiffusion;
+float _AmbientTemperature;
+float _BuoyancySigma;
+float _BuoyancyKappa;
+float _VorticityEpsilon;
 
-float3 _HitPoint;
+float3 _Emitter;
+float _EmitterRadius;
+float _EmitterTemperature;
 
 // State textures
 RWTexture2D<float4> _Velocity;
@@ -46,36 +85,75 @@ float2 ThreadToCell(uint3 id)
 	return id.xy;
 
 	/*
-    float width, height;
-    _Velocity.GetDimensions(width, height);
+	float width, height;
+	_Velocity.GetDimensions(width, height);
 
-    return float2(
-		id.x % width,
-		id.x / width
-    );*/
+	return float2(
+	id.x % width,
+	id.x / width
+	);*/
 }
 
 /*float3 ThreadTo3D(uint3 index)
 {
-    float width, height, depth;
-    _Velocity.GetDimensions(width, height, depth);
+float width, height, depth;
+_Velocity.GetDimensions(width, height, depth);
 
-    // Dunno if this is right, but I assume all dimensions
-    // are the same.. so whatev
-    float3 p = float3(
-        index.x % width,
-        (index.x / width) % depth,
-        index.x / (width * depth)
-    );
+// Dunno if this is right, but I assume all dimensions
+// are the same.. so whatev
+float3 p = float3(
+index.x % width,
+(index.x / width) % depth,
+index.x / (width * depth)
+);
 }*/
 
+// Utility
+
+/*
+float2 CurlNoise2D(float2 p)
+{
+	float epsilon = 1.0;
+	float n1, n2, a, b;
+
+	n1 = noise(p.x, p.y + epsilon);
+	n2 = noise(v.x, p.y - epsilon);
+	a = (n1 - n2) / (2.0 * epsilon);
+
+	n1 = noise(p.x + epsilon, p.y);
+	n2 = noise(p.x - epsilon, p.y);
+	b = (n1 - n2) / (2.0 * epsilon);
+
+	return float2(a, -b);
+}
+*/
+
+/**
+* Curl of a position in the velocity field
+*/
+/*float2 CurlVelocity2D(float2 p)
+{
+	float epsilon = 1.0;
+	float n1, n2, a, b;
+
+	n1 = _Velocity[float2(p.x, p.y + epsilon)];
+	n2 = _Velocity[float2(p.x, p.y - epsilon)];
+	a = (n1 - n2) / (2.0 * epsilon);
+
+	n1 = _Velocity[float2(p.x + epsilon, p.y)];
+	n2 = _Velocity[float2(p.x - epsilon, p.y)];
+	b = (n1 - n2) / (2.0 * epsilon);
+
+	return float2(a, -b);
+}
+*/
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void TestWrite(uint3 id : SV_DispatchThreadID)
 {
 	float2 cell = ThreadToCell(id);
 
-	float width, height;
+	uint width, height;
 	_Velocity.GetDimensions(width, height);
 
 	//_Velocity[cell] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
@@ -84,7 +162,7 @@ void TestWrite(uint3 id : SV_DispatchThreadID)
 	_Velocity[cell] = float4(0, 0, 0, 1);
 
 	if ((cell.x > 16 && cell.x < 20 || (cell.y > 16 && cell.y < 20)) {
-		_Velocity[cell] = float4(0, 1, 0, 1);
+	_Velocity[cell] = float4(0, 1, 0, 1);
 	}*/
 
 	// Write solid border to prevent texture looping
@@ -94,29 +172,35 @@ void TestWrite(uint3 id : SV_DispatchThreadID)
 	else {
 		_Solids[cell] = 0;
 	}
+
+
 }
 
-
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
-void HitTest(uint3 id : SV_DispatchThreadID)
+void Impulse(uint3 id : SV_DispatchThreadID)
 {
 	float width, height;
 	_Velocity.GetDimensions(width, height);
 
-	// Mouse hit point is in xz axis for the demo
-	float distance = length((-_HitPoint.xz + 0.5) - id.xy / width);
+	// TODO: Don't do the transformation here, do it in C#
+	// so an emitter could be an arbitrary location on the texture
+	float2 direction = (-_Emitter.xy + 0.5) - id.xy / width;
+	float distance = length(direction);
 
 	/*if (distance < 0.1) {
-		_Velocity[id.xy] = float4(1, 1, 1, 0);
+	_Velocity[id.xy] = float4(1, 1, 1, 0);
 	}*/
 
 	// Outward impulse
-	if (distance < 0.05) {
-		float a = 0.05 - distance;
-		_Density[id.xy] = saturate(_Density[id.xy] + a);
-		_Velocity[id.xy] = float4(0, 0.01, 0, 1);
-		// _Velocity[id.xy] = float4(a, a, a, 1);
+	if (distance < _EmitterRadius) {
+		float r = _EmitterRadius - distance;
+
+		_Density[id.xy] = saturate(_Density[id.xy] + r);
+		_Temperature[id.xy] = _Temperature[id.xy] + r * _EmitterTemperature;
+		// _Velocity[id.xy] += float4(normalize(direction) * r, 0, 1);
 	}
+
+	// _Temperature[id.xy] = saturate(id.y / height);
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
@@ -124,126 +208,243 @@ void VelocityAdvection(uint3 id : SV_DispatchThreadID)
 {
 	float2 cell = ThreadToCell(id);
 
-    float2 v = _Velocity[cell].xy;
-    float2 newCell = cell - v * _DeltaTime;
+	float2 v = _Velocity[cell].xy;
+	float2 newCell = cell + v * _DeltaTime;
 
-    float2 result = _Velocity[newCell].xy;
+	float2 result = _Velocity[newCell].xy;
 
-    _VelocityOut[cell] = float4(result, 0, 1);
+	// Check for collision against the solid layer
+	/*float solid = _Solids[newCell];
+	if (solid > 0.9) {
+		result = float2(0, 0);
+	}*/
+
+	_VelocityOut[cell] = float4(result, 0, 1);
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void Viscosity(uint3 id : SV_DispatchThreadID)
 {
-    float2 cell = ThreadToCell(id);
+	float2 cell = ThreadToCell(id);
 
-    float2 L = _Velocity[cell + float2(-1, 0)].xy;
-    float2 R = _Velocity[cell + float2(1, 0)].xy;
-    float2 D = _Velocity[cell + float2(0, -1)].xy;
-    float2 U = _Velocity[cell + float2(0, 1)].xy;
+	float2 L = _Velocity[cell + float2(-1, 0)].xy;
+	float2 R = _Velocity[cell + float2(1, 0)].xy;
+	float2 D = _Velocity[cell + float2(0, -1)].xy;
+	float2 U = _Velocity[cell + float2(0, 1)].xy;
 
-    float2 C = _Velocity[cell].xy;
+	float2 C = _Velocity[cell].xy;
 
-    // Jacobian 2D
-    float alpha = 1.0 / _DeltaTime * _Viscosity;
-    float beta = 4.0 + alpha;
-    float2 result = (L + R + D + U + alpha * C) / beta;
+	// Check for collision against the solid layer
+	/*float solid = _Solids[cell + float2(-1, 0)];
+	if (solid > 0.9) {
+		L = C;
+	}
 
-    _VelocityOut[cell] = float4(result, 0, 1);
+	solid = _Solids[cell + float2(1, 0)];
+	if (solid > 0.9) {
+		R = C;
+	}
+
+	solid = _Solids[cell + float2(0, -1)];
+	if (solid > 0.9) {
+		D = C;
+	}
+
+	solid = _Solids[cell + float2(0, 1)];
+	if (solid > 0.9) {
+		U = C;
+	}*/
+
+	// Jacobi 2D
+	float alpha = 1.0 / 0.125 * _Viscosity;
+	float beta = 4.0 + alpha;
+	float2 result = (L + R + D + U + alpha * C) / beta;
+
+	_VelocityOut[cell] = float4(result, 0, 1);
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void DensityAdvection(uint3 id : SV_DispatchThreadID)
 {
-    float2 cell = ThreadToCell(id);
+	float2 cell = ThreadToCell(id);
 
-    float2 v = _Velocity[cell].xy;
-    float2 newCell = cell - v * _DeltaTime;
+	float2 v = _Velocity[cell].xy;
+	float2 newCell = cell + v * _DeltaTime;
 
-    float result = _Density[newCell];
+	float result = _Density[newCell];
 
-    _DensityOut[cell] = result;
+	// Check for collision against the solid layer
+	/*float solid = _Solids[newCell];
+	if (solid > 0.9) {
+		result = 0;
+	}*/
+
+	_DensityOut[cell] = result * 0.99;
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void Diffusion(uint3 id : SV_DispatchThreadID)
 {
-    float2 cell = ThreadToCell(id);
+	float2 cell = ThreadToCell(id);
 
-    float L = _Density[cell + float2(-1, 0)];
-    float R = _Density[cell + float2(1, 0)];
-    float D = _Density[cell + float2(0, -1)];
-    float U = _Density[cell + float2(0, 1)];
-    // float3 B = _Density[cell + float3(0, 0, -1)];
-    // float3 F = _Density[cell + float3(0, 0, 1)];
+	float L = _Density[cell + float2(-1, 0)];
+	float R = _Density[cell + float2(1, 0)];
+	float D = _Density[cell + float2(0, -1)];
+	float U = _Density[cell + float2(0, 1)];
+	// float3 B = _Density[cell + float3(0, 0, -1)];
+	// float3 F = _Density[cell + float3(0, 0, 1)];
 
-    float C = _Density[cell];
+	float C = _Density[cell];
 
-    // Jacobian 1D 
-    float alpha = 1.0 / _DeltaTime * _DensityDiffusion;
-    float beta = 4.0 + alpha;
-    float result = (L + R + D + U + alpha * C) / beta;
+	// Check for collision against the solid layer
+	/*float solid = _Solids[cell + float2(-1, 0)];
+	if (solid > 0.9) {
+		L = C;
+	}
+
+	solid = _Solids[cell + float2(1, 0)];
+	if (solid > 0.9) {
+		R = C;
+	}
+
+	solid = _Solids[cell + float2(0, -1)];
+	if (solid > 0.9) {
+		D = C;
+	}
+
+	solid = _Solids[cell + float2(0, 1)];
+	if (solid > 0.9) {
+		U = C;
+	}*/
+
+	// Jacobi 1D 
+	float alpha = 1.0 / 0.125 * _DensityDiffusion;
+	float beta = 4.0 + alpha;
+	float result = (L + R + D + U + alpha * C) / beta;
 
 	// While writing out density, also drop density over time
-    _DensityOut[cell] = result * 0.99;
+	_DensityOut[cell] = result; // *0.99;
 }
 
 float Divergence(float2 cell)
 {
-    // Get velocity values from neighboring cells
-    float4 L = _Velocity[cell + float2(-1, 0)];
-    float4 R = _Velocity[cell + float2(1, 0)];
-    float4 D = _Velocity[cell + float2(0, -1)];
-    float4 U = _Velocity[cell + float2(0, 1)];
-    // float4 B = _Velocity[cell + float3(0, 0, -1)];
-    // float4 F = _Velocity[cell + float3(0, 0, 1)];
+	// Get velocity values from neighboring cells
+	float4 L = _Velocity[cell + float2(-1, 0)];
+	float4 R = _Velocity[cell + float2(1, 0)];
+	float4 D = _Velocity[cell + float2(0, -1)];
+	float4 U = _Velocity[cell + float2(0, 1)];
+	// float4 B = _Velocity[cell + float3(0, 0, -1)];
+	// float4 F = _Velocity[cell + float3(0, 0, 1)];
 
-    // Compute diverge using central differences
-    float divergence = 0.5 * ((R.x - L.x) + (U.y - D.y)); // +(F.z - B.z));
+	// Check for collision against the solid layer
+	/*float solid = _Solids[cell + float2(-1, 0)];
+	if (solid > 0.9) {
+		L = float4(0, 0, 0, 1);
+	}
 
-    return divergence;
+	solid = _Solids[cell + float2(1, 0)];
+	if (solid > 0.9) {
+		R = float4(0, 0, 0, 1);
+	}
+
+	solid = _Solids[cell + float2(0, -1)];
+	if (solid > 0.9) {
+		D = float4(0, 0, 0, 1);
+	}
+
+	solid = _Solids[cell + float2(0, 1)];
+	if (solid > 0.9) {
+		U = float4(0, 0, 0, 1);
+	}*/
+
+	// Compute diverge using central differences
+	float divergence = 0.5 * ((L.x - R.x) + (U.y - D.y)); // +(F.z - B.z));
+
+	return divergence;
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void Pressure(uint3 id : SV_DispatchThreadID)
 {
-    float2 cell = ThreadToCell(id);
+	float2 cell = ThreadToCell(id);
 
-    float L = _Pressure[cell + float2(-1, 0)];
-    float R = _Pressure[cell + float2(1, 0)];
-    float D = _Pressure[cell + float2(0, -1)];
-    float U = _Pressure[cell + float2(0, 1)];
-    // float3 B = _Pressure[cell + float3(0, 0, -1)];
-    // float3 F = _Pressure[cell + float3(0, 0, 1)];
+	float L = _Pressure[cell + float2(-1, 0)];
+	float R = _Pressure[cell + float2(1, 0)];
+	float D = _Pressure[cell + float2(0, -1)];
+	float U = _Pressure[cell + float2(0, 1)];
+	// float3 B = _Pressure[cell + float3(0, 0, -1)];
+	// float3 F = _Pressure[cell + float3(0, 0, 1)];
 
-    // TODO: Recheck. This doesn't seem right
-    float C = Divergence(cell);
+	// TODO: Recheck. This doesn't seem right
+	float C = Divergence(cell);
 
-    // Compute new pressure for our cell (1D Jacobian)
-    float alpha = -1;
-    float beta = 4;
-    float pressure = (L + R + D + U + alpha * C) / beta;
+	// Check for collision against the solid layer
+	/*float solid = _Solids[cell + float2(-1, 0)];
+	if (solid > 0.9) {
+		L = C;
+	}
 
-    _PressureOut[cell] = pressure;
+	solid = _Solids[cell + float2(1, 0)];
+	if (solid > 0.9) {
+		R = C;
+	}
+
+	solid = _Solids[cell + float2(0, -1)];
+	if (solid > 0.9) {
+		D = C;
+	}
+
+	solid = _Solids[cell + float2(0, 1)];
+	if (solid > 0.9) {
+		U = C;
+	}*/
+
+	// Compute new pressure for our cell (1D Jacobi)
+	float alpha = -1;
+	float beta = 4;
+	float pressure = (L + R + D + U + alpha * C) / beta;
+
+	_PressureOut[cell] = pressure;
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
 void Gradient(uint3 id : SV_DispatchThreadID)
 {
-    float2 cell = ThreadToCell(id);
+	float2 cell = ThreadToCell(id);
 
-    float L = _Pressure[cell + float2(-1, 0)];
-    float R = _Pressure[cell + float2(1, 0)];
-    float D = _Pressure[cell + float2(0, -1)];
-    float U = _Pressure[cell + float2(0, 1)];
+	float L = _Pressure[cell + float2(-1, 0)];
+	float R = _Pressure[cell + float2(1, 0)];
+	float D = _Pressure[cell + float2(0, -1)];
+	float U = _Pressure[cell + float2(0, 1)];
 
-    float C = _Pressure[cell];
+	float C = _Pressure[cell];
+	
+	// Check for collision against the solid layer
+	/*float solid = _Solids[cell + float2(-1, 0)];
+	if (solid > 0.9) {
+		L = C;
+	}
 
-    float2 vel = _Velocity[cell].xy;
+	solid = _Solids[cell + float2(1, 0)];
+	if (solid > 0.9) {
+		R = C;
+	}
 
-    vel = vel - 0.5 * float2(R - L, U - D);
+	solid = _Solids[cell + float2(0, -1)];
+	if (solid > 0.9) {
+		D = C;
+	}
 
-    _VelocityOut[cell] = float4(vel, 0, 1);
+	solid = _Solids[cell + float2(0, 1)];
+	if (solid > 0.9) {
+		U = C;
+	}*/
+
+	float2 vel = _Velocity[cell].xy;
+
+	vel = vel - 0.5 * float2(R - L, U - D);
+
+	_VelocityOut[cell] = float4(vel, 0, 1);
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
@@ -252,9 +453,92 @@ void TemperatureAdvection(uint3 id : SV_DispatchThreadID)
 	float2 cell = ThreadToCell(id);
 
 	float2 v = _Velocity[cell].xy;
-	float2 newCell = cell - v * _DeltaTime;
+	float2 newCell = cell + v * _DeltaTime;
 
 	float result = _Temperature[newCell];
 
-	_TemperatureOut[cell] = result;
+	// Check for collision against the solid layer
+	/*float solid = _Solids[newCell];
+	if (solid > 0.9) {
+		result = 0;
+	}*/
+
+	_TemperatureOut[cell] = result * 0.99;
 }
+
+float2 Buoyancy(float2 cell)
+{
+	// Block negative temperatures
+	if (_Temperature[cell] < _AmbientTemperature) {
+		return float2(0, 0);
+	}
+
+	float2 force = (-_BuoyancyKappa * _Density[cell] + _BuoyancySigma
+					* (_Temperature[cell] - _AmbientTemperature))
+					* _UpVector;
+
+	return force;
+}
+
+float2 Vorticity(float2 cell)
+{
+	/*
+	GPU Gems defines vorticity as:
+
+	w = curl(flow velocity @ cell)
+	n = gradient(abs(w))
+	force = epsilon * cross(normalize(n), w) * DeltaTime
+	where epsilon is as user controlled scale constant
+	Fedkiw, et al. throws in an `h` value, but doesn't
+	really go into detail as to whether it's a variant,
+	just "dependence on the spatial discretization h".
+	*/
+	/*
+	float L = CurlVelocity2D(cell + float2(-1, 0));
+	float R = CurlVelocity2D(cell + float2(1, 0));
+	float D = CurlVelocity2D(cell + float2(0, -1));
+	float U = CurlVelocity2D(cell + float2(0, 1));
+
+	float C = CurlVelocity2D(cell);
+
+	float2 gradient = 0.5 * float2(R - L, U - D);
+	// Not quite sure how to abs(w) in a gradient.. since
+	// the gradient depends on surrounding points.
+
+	float2 force = _VorticityEpsilon * cross(normalize(gradient), C);
+
+	force *= DeltaTime;
+	*/
+
+	float2 force = float2(0, 0);
+
+	return force;
+}
+
+[numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
+void Forces(uint3 id : SV_DispatchThreadID)
+{
+	/*
+	Requires textures:
+	_Density
+	_Temperature
+	_Velocity
+	_VelocityOut
+
+	Required globals:
+	_BuoyancyKappa (???)
+	_BuoyancySigma (???)
+	_UpVector (0, +1)
+	_AmbientTemperature (0)
+	*/
+	float2 cell = ThreadToCell(id);
+
+	float2 forces = float2(0, 0);
+
+	forces += Buoyancy(cell);
+	forces += Vorticity(cell);
+
+	_VelocityOut[cell] = _Velocity[cell] + float4(forces, 0, 1);
+}
+
+
