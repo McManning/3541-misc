@@ -37,7 +37,7 @@ public class SmokeEmitter : MonoBehaviour
     public float buoyancySigma;
     public float buoyancyKappa;
     public float vorticityEpsilon;
-    public float emitterTemperature;
+    public AnimationCurve emitterTemperature;
 
     public int scale = 32;
 
@@ -45,7 +45,16 @@ public class SmokeEmitter : MonoBehaviour
 
     public bool simulate;
 
-    public float emitterRadius;
+    public AnimationCurve emitterRadius;
+
+    /// <summary>
+    /// Quick and dirty hacked in tracking of an object 
+    /// to be the emitter. (Expects the object to be 
+    /// in front of this plane in -Z)
+    /// </summary>
+    public GameObject trackedObject;
+
+    public BezierSpline trackedSpline;
 
     // private Texture3D texture;
 
@@ -64,6 +73,9 @@ public class SmokeEmitter : MonoBehaviour
     private int threadGroupsY;
     private int threadGroupsZ;
 
+    private float startTime;
+    private float trackedSplineTime;
+
     private DebugTexture lastActiveTexture;
 
     void Start()
@@ -78,6 +90,8 @@ public class SmokeEmitter : MonoBehaviour
         ComputeTestWrite();
 
         UpdateActiveTexture();
+
+        startTime = Time.realtimeSinceStartup;
     }
 
     void OnDestroy()
@@ -98,7 +112,7 @@ public class SmokeEmitter : MonoBehaviour
         solidsTex = CreateTexture(RenderTextureFormat.RFloat);
         solidsOutTex = CreateTexture(RenderTextureFormat.RFloat);
     }
-    
+
     private void ReleaseTextures()
     {
         velocityTex.Release();
@@ -136,7 +150,7 @@ public class SmokeEmitter : MonoBehaviour
                 texture = densityTex;
                 break;
         }
-        
+
         mat.SetTexture("_MainTex", texture);
         mat.SetInt("_ActiveTexture", (int)activeTexture);
     }
@@ -163,7 +177,7 @@ public class SmokeEmitter : MonoBehaviour
     void Update()
     {
         UpdateComputeShaderSettings();
-        
+
         if (activeTexture != lastActiveTexture)
         {
             lastActiveTexture = activeTexture;
@@ -174,7 +188,7 @@ public class SmokeEmitter : MonoBehaviour
         {
             ComputeVelocityAdvection();
             Swap(ref velocityTex, ref velocityOutTex);
-            
+
             Project();
 
             Viscosity();
@@ -190,8 +204,21 @@ public class SmokeEmitter : MonoBehaviour
             ComputeForces();
             Swap(ref velocityTex, ref velocityOutTex);
         }
-        
+
         CheckForMouse();
+
+        if (trackedObject != null)
+        {
+            ImpulseFromTrackedObject();
+        }
+
+        // Delay to puff
+
+        if (trackedSpline != null && trackedSplineTime < Time.realtimeSinceStartup - startTime)
+        {
+            ImpulseFromTrackedSpline();
+            trackedSplineTime = Time.realtimeSinceStartup - startTime + 0.05f;
+        }
     }
 
     private void CheckForMouse()
@@ -205,17 +232,46 @@ public class SmokeEmitter : MonoBehaviour
             AddPoint(worldPos);
         }
     }
-    
+
+    private void ImpulseFromTrackedObject()
+    {
+        // Project tracked location onto this 
+        var t = trackedObject.transform.position;
+        var p = transform.position;
+        var scale = transform.localScale;
+
+        // Use x/y from tracked, and rescale to our scope
+        AddPoint((p - t) * scale.x);
+    }
+
+    private void ImpulseFromTrackedSpline()
+    {
+        // This is super sub-optimal, but it's 10 PM and this is due at midnight :)
+        float t = 0;
+        var pos = transform.position;
+        var scale = transform.localScale;
+
+        while (t < 1.0)
+        {
+            var p = trackedSpline.GetPoint(t);
+            AddPoint((pos - p) * scale.x);
+
+            t += 0.01f;
+        }
+    }
+
     private void AddPoint(Vector3 point)
     {
         int kernel = compute.FindKernel("Impulse");
-        
+
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Density", densityTex);
         compute.SetTexture(kernel, "_Temperature", temperatureTex);
         compute.SetVector("_Emitter", point);
-        compute.SetFloat("_EmitterRadius", emitterRadius);
-        compute.SetFloat("_EmitterTemperature", emitterTemperature);
+        compute.SetFloat(
+            "_EmitterRadius",
+            emitterRadius.Evaluate(Time.realtimeSinceStartup - startTime)
+        );
         
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
@@ -225,7 +281,7 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetFloat("_DeltaTime", Time.deltaTime * timeScale);
 
         compute.SetFloat("_Scale", scale);
-        
+
         compute.SetVector("_UpVector", Vector2.up);
         compute.SetFloat("_Viscosity", viscosity);
         compute.SetFloat("_DensityDiffusion", diffusion);
@@ -233,8 +289,13 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetFloat("_BuoyancyKappa", buoyancyKappa);
         compute.SetFloat("_BuoyancySigma", buoyancySigma);
         compute.SetFloat("_VorticityEpsilon", vorticityEpsilon);
+
+        compute.SetFloat(
+            "_EmitterTemperature",
+            emitterTemperature.Evaluate(Time.realtimeSinceStartup - startTime)
+        );
     }
-    
+
     private void Diffusion()
     {
         for (int i = 0; i < jacobiIterations; i++)
@@ -331,7 +392,7 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_Pressure", pressureTex);
         compute.SetTexture(kernel, "_PressureOut", pressureOutTex);
-        
+
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
 
@@ -343,7 +404,7 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetTexture(kernel, "_Pressure", pressureTex);
         compute.SetTexture(kernel, "_Velocity", velocityTex);
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
-        
+
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
 
@@ -368,10 +429,10 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetTexture(kernel, "_VelocityOut", velocityOutTex);
         compute.SetTexture(kernel, "_Temperature", temperatureTex);
         compute.SetTexture(kernel, "_Density", densityTex);
-        
+
         compute.Dispatch(kernel, threadGroupsX, threadGroupsY, threadGroupsZ);
     }
-    
+
     private void Swap(ref RenderTexture a, ref RenderTexture b)
     {
         var c = a;
@@ -407,7 +468,7 @@ public class SmokeEmitter : MonoBehaviour
         compute.SetVector("CameraPosition", pos);
         compute.SetFloats("FrustumRays", frustumRays);
     }
-    
+
     /// <summary>
     /// Push new Texture3D into the compute shader
     /// </summary>

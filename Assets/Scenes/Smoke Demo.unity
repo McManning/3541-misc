@@ -160,11 +160,47 @@ MonoBehaviour:
   buoyancySigma: 2
   buoyancyKappa: 0.01
   vorticityEpsilon: 0
-  emitterTemperature: 50
+  emitterTemperature:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: 0
+      value: 50
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 1
+      value: 50
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
   scale: 256
   timeScale: 0.1
   simulate: 1
-  emitterRadius: 0.05
+  emitterRadius:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: 0
+      value: 0.05
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 1
+      value: 0.05
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
+  trackedObject: {fileID: 0}
+  trackedSpline: {fileID: 0}
 --- !u!4 &672899023
 Transform:
   m_ObjectHideFlags: 0
