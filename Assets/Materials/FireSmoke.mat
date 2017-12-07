@@ -24,7 +24,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - _ActiveTexture: 0
-    - _IntensityScale: 1
+    - _IntensityScale: 0.8
     - _UseAlpha: 1
     m_Colors:
     - _DensityColor: {r: 1, g: 0.51724136, b: 0, a: 1}

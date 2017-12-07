@@ -153,13 +153,13 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 2
       time: 0
-      value: 1
+      value: 50
       inSlope: 0
       outSlope: 0
       tangentMode: 0
     - serializedVersion: 2
       time: 1
-      value: 1
+      value: 50
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -173,16 +173,16 @@ MonoBehaviour:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 2
-      time: 0
-      value: 1
-      inSlope: 0
-      outSlope: 0
+      time: -0.011711121
+      value: 0.0001
+      inSlope: 0.008857223
+      outSlope: 0.008857223
       tangentMode: 0
     - serializedVersion: 2
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
+      time: 10
+      value: 0.05
+      inSlope: 0.0033440553
+      outSlope: 0.0033440553
       tangentMode: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
