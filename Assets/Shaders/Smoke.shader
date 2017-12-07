@@ -53,7 +53,7 @@
 				}
 				else if (_ActiveTexture == 2) {
 					// Pressure
-					return fixed4(0, col.r * 2.0, 0, 1);
+					return fixed4(0, col.r, 0, 1);
 				}
 				else if (_ActiveTexture == 3) {
 					// Temperature

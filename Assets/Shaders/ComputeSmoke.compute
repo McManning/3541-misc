@@ -29,6 +29,7 @@
 	References:
 		http://developer.download.nvidia.com/books/HTML/gpugems/gpugems_ch38.html
 		https://web.stanford.edu/class/cs237d/smoke.pdf
+		http://www.dgp.toronto.edu/people/stam/reality/Research/pdf/GDC03.pdf
 */
 #pragma kernel TestWrite
 #pragma kernel Impulse
@@ -191,6 +192,10 @@ void Impulse(uint3 id : SV_DispatchThreadID)
 	_Velocity[id.xy] = float4(1, 1, 1, 0);
 	}*/
 
+	// Slight additive temperature gradient across the whole texture to help
+	// force smoke upward at all times
+	_Temperature[id.xy] = _Temperature[id.xy] + saturate(id.y / height * 0.001);
+
 	// Outward impulse
 	if (distance < _EmitterRadius) {
 		float r = _EmitterRadius - distance;
@@ -200,7 +205,6 @@ void Impulse(uint3 id : SV_DispatchThreadID)
 		// _Velocity[id.xy] += float4(normalize(direction) * r, 0, 1);
 	}
 
-	// _Temperature[id.xy] = saturate(id.y / height);
 }
 
 [numthreads(THREADS_X, THREADS_Y, THREADS_Z)]
