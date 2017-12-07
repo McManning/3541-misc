@@ -4,17 +4,27 @@
 	{
 		_MainTex ("Texture", 2D) = "white" {}
 		_ActiveTexture ("Active Texture ID", Int) = 0
+		_DensityColor ("Density Color", Color) = (1, 1, 1, 1)
+		_IntensityScale ("Intensity Scale", Float) = 1.0
+		_UseAlpha ("Use Alpha", Int) = 0
 	}
 	SubShader
 	{
-		Tags { "RenderType"="Opaque" }
+		Tags{ "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
 
 		Pass
 		{
+
+			// Alpha blend the particle (when appropriate)
+			Blend SrcAlpha OneMinusSrcAlpha
+
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-			
+
+			// Alpha blend the particle (when appropriate)
+			// Blend SrcAlpha OneMinusSrcAlpha
+
 			#include "UnityCG.cginc"
 
 			struct appdata
@@ -32,6 +42,9 @@
 			sampler2D _MainTex;
 			float4 _MainTex_ST;
 			int _ActiveTexture;
+			float4 _DensityColor;
+			float _IntensityScale;
+			float _UseAlpha;
 
 			v2f vert (appdata v)
 			{
@@ -46,10 +59,17 @@
 			{
 				fixed4 col = tex2D(_MainTex, i.uv);
 				
-				// Density
 				if (_ActiveTexture == 1) {
-					float d = saturate(col.r * 3.0);
-					return fixed4(d, d, d, 1);
+					// Density
+					// float d = saturate(col.r * 3.0);
+					// return fixed4(d, d, d, 1);
+					col = _DensityColor * col.r * _IntensityScale;
+
+					if (!_UseAlpha) {
+						col.a = 1.0;
+					}
+
+					return col;
 				}
 				else if (_ActiveTexture == 2) {
 					// Pressure
